@@ -46,7 +46,7 @@ const systemConfig: SystemConfig = {
 };
 
 let realTelemetry: TelemetryPoint[] = [];
-let simulationSeries: TelemetryPoint[] = generateSimulationSeries();
+let simulationSeries: TelemetryPoint[] = [];
 let experiments: FilterExperimentTrial[] = [];
 
 const notifications: DeviceNotification[] = [
@@ -217,6 +217,8 @@ function generateSimulationSeries(): TelemetryPoint[] {
   }
   return points;
 }
+
+simulationSeries = generateSimulationSeries();
 
 function getConnectionState(): DeviceConnectionState {
   if (currentMode === 'terhubung_esp32') return 'Terhubung';
