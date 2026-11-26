@@ -4,9 +4,16 @@ import type {
   DashboardMode,
   NavSection,
   SystemStatePayload,
+  TelemetryPoint,
   TimeRangeFilter,
 } from './types/airskin';
 import { formatTimestamp } from './utils/airskinMetrics';
+import {
+  buildClientSimulationPoint,
+  createInitialClientState,
+  parseJsonIfAvailable,
+  seedClientSimulation,
+} from './utils/clientFallbackState';
 import { BrandLogo } from './components/BrandLogo';
 import { Sidebar } from './components/Sidebar';
 import { OverviewPage } from './pages/OverviewPage';
@@ -20,51 +27,97 @@ export default function App() {
   const [activeSection, setActiveSection] = useState<NavSection>('overview');
   const [timeRange, setTimeRange] = useState<TimeRangeFilter>('15m');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [state, setState] = useState<SystemStatePayload | null>(null);
+  const [state, setState] = useState<SystemStatePayload>(() => createInitialClientState());
+  const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
   const fetchState = useCallback(async () => {
     try {
       const resp = await fetch('/api/system/state');
-      if (resp.ok) {
-        const data = (await resp.json()) as SystemStatePayload;
+      const data = await parseJsonIfAvailable<SystemStatePayload>(resp);
+      if (data) {
+        setBackendAvailable(true);
         setState(data);
+      } else {
+        setBackendAvailable(false);
       }
     } catch {
-      // ignore transient network errors during poll
+      setBackendAvailable(false);
     }
   }, []);
 
   useEffect(() => {
     fetchState();
-    const poll = window.setInterval(fetchState, 3000);
-    return () => window.clearInterval(poll);
   }, [fetchState]);
 
   useEffect(() => {
-    if (!state?.simulation.running) return;
+    if (backendAvailable !== true) return;
+    const poll = window.setInterval(fetchState, 3000);
+    return () => window.clearInterval(poll);
+  }, [backendAvailable, fetchState]);
+
+  useEffect(() => {
+    if (!state.simulation.running) return;
     const stepTimer = window.setInterval(async () => {
-      try {
-        await fetch('/api/simulation/step', { method: 'POST' });
-        await fetchState();
-      } catch {
-        // ignore transient error
+      if (backendAvailable) {
+        try {
+          await fetch('/api/simulation/step', { method: 'POST' });
+          await fetchState();
+          return;
+        } catch {
+          // fallback to local step if connection drops
+        }
       }
+
+      setState((prev) => {
+        if (!prev.simulation.running) return prev;
+        const idx = prev.simulationTelemetry.length;
+        const nowIso = new Date().toISOString();
+        const pt = buildClientSimulationPoint(
+          idx,
+          prev.simulation.initialPm25Inlet,
+          prev.simulation.initialPm10Inlet,
+          nowIso,
+        );
+        const nextSeries = [...prev.simulationTelemetry, pt].slice(-240);
+        return {
+          ...prev,
+          lastUpdatedAt: prev.mode === 'simulation' ? nowIso : prev.lastUpdatedAt,
+          simulationTelemetry: nextSeries,
+          simulation: {
+            ...prev.simulation,
+            elapsedSeconds: prev.simulation.elapsedSeconds + 3,
+          },
+        };
+      });
     }, 3000);
     return () => window.clearInterval(stepTimer);
-  }, [state?.simulation.running, fetchState]);
+  }, [state.simulation.running, backendAvailable, fetchState]);
 
   const handleToggleMode = async () => {
-    if (!state || busy) return;
+    if (busy) return;
     const nextMode: DashboardMode = state.mode === 'simulation' ? 'live' : 'simulation';
     setBusy(true);
     try {
-      await fetch('/api/system/mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: nextMode }),
-      });
-      await fetchState();
+      if (backendAvailable) {
+        const resp = await fetch('/api/system/mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: nextMode }),
+        });
+        if (resp.ok) {
+          await fetchState();
+          return;
+        }
+      }
+      setState((prev) => ({
+        ...prev,
+        mode: nextMode,
+        lastUpdatedAt:
+          nextMode === 'live'
+            ? prev.deviceStatus.lastDataReceived
+            : prev.simulationTelemetry[prev.simulationTelemetry.length - 1]?.timestamp || null,
+      }));
     } finally {
       setBusy(false);
     }
@@ -73,15 +126,40 @@ export default function App() {
   const handleStartSimulation = async (pm25: number, pm10: number) => {
     setBusy(true);
     try {
-      await fetch('/api/simulation/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (backendAvailable) {
+        const resp = await fetch('/api/simulation/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            initialPm25Inlet: pm25,
+            initialPm10Inlet: pm10,
+          }),
+        });
+        if (resp.ok) {
+          await fetchState();
+          return;
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      const firstPt = buildClientSimulationPoint(0, pm25, pm10, nowIso);
+      setState((prev) => ({
+        ...prev,
+        mode: 'simulation',
+        lastUpdatedAt: nowIso,
+        simulationTelemetry: [firstPt],
+        simulation: {
+          running: true,
           initialPm25Inlet: pm25,
           initialPm10Inlet: pm10,
-        }),
-      });
-      await fetchState();
+          startedAt: nowIso,
+          elapsedSeconds: 0,
+        },
+        deviceStatus: {
+          ...prev.deviceStatus,
+          fanStatus: prev.deviceConnected ? 'Active' : 'Standby',
+        },
+      }));
     } finally {
       setBusy(false);
     }
@@ -90,26 +168,90 @@ export default function App() {
   const handleResetSimulation = async () => {
     setBusy(true);
     try {
-      await fetch('/api/simulation/reset', { method: 'POST' });
-      await fetchState();
+      if (backendAvailable) {
+        const resp = await fetch('/api/simulation/reset', { method: 'POST' });
+        if (resp.ok) {
+          await fetchState();
+          return;
+        }
+      }
+      const seeded = seedClientSimulation(58.0, 92.0);
+      const nowIso = seeded[seeded.length - 1]?.timestamp || new Date().toISOString();
+      setState((prev) => ({
+        ...prev,
+        lastUpdatedAt: prev.mode === 'simulation' ? nowIso : prev.lastUpdatedAt,
+        simulationTelemetry: seeded,
+        simulation: {
+          running: false,
+          initialPm25Inlet: 58.0,
+          initialPm10Inlet: 92.0,
+          startedAt: nowIso,
+          elapsedSeconds: 0,
+        },
+        deviceStatus: {
+          ...prev.deviceStatus,
+          fanStatus: prev.deviceConnected ? 'Active' : 'Disconnected',
+        },
+      }));
     } finally {
       setBusy(false);
     }
   };
 
-  if (!state) {
-    return (
-      <div className="min-h-screen bg-[#EAF6FF] flex items-center justify-center p-6">
-        <div className="airskin-card px-8 py-6 flex items-center gap-4">
-          <BrandLogo className="w-10 h-10 animate-pulse" />
-          <div>
-            <p className="font-display font-semibold text-[#103B66]">AIRSKIN COIR</p>
-            <p className="text-xs text-[#176FAF]">Memuat sistem pemantauan kualitas udara...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleLocalTelemetryPacket = (packet: {
+    pm25Inlet: number;
+    pm25Outlet: number | null;
+    pm10Inlet: number;
+    pm10Outlet: number | null;
+  }) => {
+    const nowIso = new Date().toISOString();
+    const pt: TelemetryPoint = {
+      id: `esp-local-${Date.now()}`,
+      timestamp: nowIso,
+      pm25Inlet: Number(packet.pm25Inlet.toFixed(1)),
+      pm25Outlet: packet.pm25Outlet !== null ? Number(packet.pm25Outlet.toFixed(1)) : null,
+      pm10Inlet: Number(packet.pm10Inlet.toFixed(1)),
+      pm10Outlet: packet.pm10Outlet !== null ? Number(packet.pm10Outlet.toFixed(1)) : null,
+      source: 'esp32',
+    };
+    setState((prev) => ({
+      ...prev,
+      mode: 'live',
+      deviceConnected: true,
+      lastUpdatedAt: nowIso,
+      liveDurationSeconds: prev.liveDurationSeconds + 3,
+      liveTelemetry: [...prev.liveTelemetry, pt].slice(-500),
+      deviceStatus: {
+        ...prev.deviceStatus,
+        esp32Connected: true,
+        pmSensorConnected: true,
+        fanStatus: 'Active',
+        dataTransmissionStatus: 'Streaming',
+        lastDataReceived: nowIso,
+      },
+    }));
+  };
+
+  const handleLocalDisconnect = () => {
+    setState((prev) => ({
+      ...prev,
+      deviceConnected: false,
+      liveDurationSeconds: 0,
+      liveTelemetry: [],
+      lastUpdatedAt:
+        prev.mode === 'live'
+          ? null
+          : prev.simulationTelemetry[prev.simulationTelemetry.length - 1]?.timestamp || null,
+      deviceStatus: {
+        ...prev.deviceStatus,
+        esp32Connected: false,
+        pmSensorConnected: false,
+        fanStatus: 'Disconnected',
+        dataTransmissionStatus: 'Disconnected',
+        lastDataReceived: null,
+      },
+    }));
+  };
 
   const isSimulation = state.mode === 'simulation';
 
@@ -156,7 +298,6 @@ export default function App() {
 
             {/* Status Indicators & Mode Switch */}
             <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-              {/* Device Connection Indicator */}
               <div className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#D4ECFC] bg-[#F8FCFF]">
                 {state.deviceConnected ? (
                   <Radio className="w-3.5 h-3.5 text-[#2F6F54]" />
@@ -173,7 +314,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Mode Indicator */}
               <div
                 className={`text-xs font-mono font-semibold px-2.5 py-1.5 rounded-lg border ${
                   isSimulation
@@ -184,13 +324,11 @@ export default function App() {
                 {isSimulation ? 'Simulation' : 'Live Data'}
               </div>
 
-              {/* Last Updated Timestamp */}
               <div className="hidden md:flex items-center gap-1.5 text-xs text-[#103B66]/75 font-mono tabular-nums px-2.5 py-1.5 rounded-lg bg-[#F5FAFF] border border-[#DCEEFB]">
                 <Clock className="w-3.5 h-3.5 text-[#176FAF]" />
                 <span>Update: {formatTimestamp(state.lastUpdatedAt)}</span>
               </div>
 
-              {/* Mode Toggle Button */}
               <button
                 type="button"
                 disabled={busy}
@@ -235,7 +373,13 @@ export default function App() {
             )}
             {activeSection === 'benchmark' && <BenchmarkPage />}
             {activeSection === 'devices' && (
-              <DevicesPage state={state} onRefreshState={fetchState} />
+              <DevicesPage
+                state={state}
+                backendAvailable={backendAvailable === true}
+                onRefreshState={fetchState}
+                onLocalTelemetryPacket={handleLocalTelemetryPacket}
+                onLocalDisconnect={handleLocalDisconnect}
+              />
             )}
           </div>
         </main>

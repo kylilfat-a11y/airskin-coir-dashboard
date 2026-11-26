@@ -13,9 +13,19 @@ import {
 import type { SystemStatePayload } from '../types/airskin';
 import { formatTimestamp } from '../utils/airskinMetrics';
 
+import { parseJsonIfAvailable } from '../utils/clientFallbackState';
+
 interface DevicesPageProps {
   state: SystemStatePayload;
+  backendAvailable: boolean;
   onRefreshState: () => Promise<void>;
+  onLocalTelemetryPacket: (packet: {
+    pm25Inlet: number;
+    pm25Outlet: number | null;
+    pm10Inlet: number;
+    pm10Outlet: number | null;
+  }) => void;
+  onLocalDisconnect: () => void;
 }
 
 interface GithubStatusResp {
@@ -27,7 +37,13 @@ interface GithubStatusResp {
   message?: string;
 }
 
-export const DevicesPage: React.FC<DevicesPageProps> = ({ state, onRefreshState }) => {
+export const DevicesPage: React.FC<DevicesPageProps> = ({
+  state,
+  backendAvailable,
+  onRefreshState,
+  onLocalTelemetryPacket,
+  onLocalDisconnect,
+}) => {
   const { deviceStatus } = state;
 
   // Test ESP32 JSON telemetry packet controls for hardware integration verification
@@ -45,12 +61,32 @@ export const DevicesPage: React.FC<DevicesPageProps> = ({ state, onRefreshState 
   const [ghFeedback, setGhFeedback] = useState<string | null>(null);
   const [ghBusy, setGhBusy] = useState(false);
 
-  const loadGithubStatus = async () => {
+  const loadGithubStatus = async (repoSlug = ghRepo) => {
     try {
-      const resp = await fetch('/api/github/status');
-      if (resp.ok) {
-        const data = (await resp.json()) as GithubStatusResp;
-        setGhStatus(data);
+      if (backendAvailable) {
+        const resp = await fetch('/api/github/status');
+        const data = await parseJsonIfAvailable<GithubStatusResp>(resp);
+        if (data) {
+          setGhStatus(data);
+          return;
+        }
+      }
+      const pubResp = await fetch(`https://api.github.com/repos/${repoSlug}`, {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (pubResp.ok) {
+        const repoData = (await pubResp.json()) as {
+          full_name: string;
+          html_url: string;
+          default_branch: string;
+        };
+        setGhStatus({
+          connected: true,
+          hasToken: false,
+          repo: repoData.full_name,
+          htmlUrl: repoData.html_url,
+          defaultBranch: repoData.default_branch,
+        });
       }
     } catch {
       // ignore transient errors
@@ -58,33 +94,39 @@ export const DevicesPage: React.FC<DevicesPageProps> = ({ state, onRefreshState 
   };
 
   useEffect(() => {
-    loadGithubStatus();
-  }, []);
+    loadGithubStatus(state.githubRepo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendAvailable, state.githubRepo]);
 
   const handleSendTestTelemetry = async (e: React.FormEvent) => {
     e.preventDefault();
     setDeviceBusy(true);
     setDeviceFeedback(null);
+    const payload = {
+      pm25Inlet: Number(testPm25In),
+      pm25Outlet: Number(testPm25Out),
+      pm10Inlet: Number(testPm10In),
+      pm10Outlet: Number(testPm10Out),
+    };
     try {
-      const resp = await fetch('/api/telemetry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pm25Inlet: Number(testPm25In),
-          pm25Outlet: Number(testPm25Out),
-          pm10Inlet: Number(testPm10In),
-          pm10Outlet: Number(testPm10Out),
-        }),
-      });
-      if (!resp.ok) {
-        const err = (await resp.json()) as { error?: string };
-        setDeviceFeedback(err.error || 'Gagal mengirim paket uji ESP32.');
-      } else {
-        setDeviceFeedback('Paket telemetri diterima pada endpoint /api/telemetry dan mode beralih ke Live Data.');
-        await onRefreshState();
+      if (backendAvailable) {
+        const resp = await fetch('/api/telemetry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await parseJsonIfAvailable<{ error?: string }>(resp);
+        if (resp.ok && data) {
+          setDeviceFeedback('Paket telemetri diterima pada endpoint /api/telemetry dan mode beralih ke Live Data.');
+          await onRefreshState();
+          return;
+        }
       }
+      onLocalTelemetryPacket(payload);
+      setDeviceFeedback('Paket uji commissioning diterapkan pada sesi lokal browser (hosting statis).');
     } catch {
-      setDeviceFeedback('Gagal menghubungi server backend.');
+      onLocalTelemetryPacket(payload);
+      setDeviceFeedback('Paket uji commissioning diterapkan pada sesi lokal browser.');
     } finally {
       setDeviceBusy(false);
     }
@@ -94,9 +136,13 @@ export const DevicesPage: React.FC<DevicesPageProps> = ({ state, onRefreshState 
     setDeviceBusy(true);
     setDeviceFeedback(null);
     try {
-      await fetch('/api/device/disconnect', { method: 'POST' });
+      if (backendAvailable) {
+        await fetch('/api/device/disconnect', { method: 'POST' });
+        await onRefreshState();
+      } else {
+        onLocalDisconnect();
+      }
       setDeviceFeedback('Sesi perangkat diputuskan kembali ke status Disconnected.');
-      await onRefreshState();
     } finally {
       setDeviceBusy(false);
     }
@@ -107,32 +153,41 @@ export const DevicesPage: React.FC<DevicesPageProps> = ({ state, onRefreshState 
     setGhBusy(true);
     setGhFeedback(null);
     try {
-      const resp = await fetch('/api/github/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repo: ghRepo.trim(),
-          ...(ghToken.trim() ? { token: ghToken.trim() } : {}),
-        }),
-      });
-      if (resp.ok) {
-        setGhToken('');
-        await loadGithubStatus();
-        setGhFeedback('Konfigurasi repositori GitHub diperbarui untuk sesi server ini.');
+      if (backendAvailable) {
+        const resp = await fetch('/api/github/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repo: ghRepo.trim(),
+            ...(ghToken.trim() ? { token: ghToken.trim() } : {}),
+          }),
+        });
+        if (resp.ok) {
+          setGhToken('');
+          await loadGithubStatus(ghRepo.trim());
+          setGhFeedback('Konfigurasi repositori GitHub diperbarui untuk sesi server ini.');
+          return;
+        }
       }
+      await loadGithubStatus(ghRepo.trim());
+      setGhFeedback('Repositori GitHub diperbarui untuk peninjauan sesi browser.');
     } finally {
       setGhBusy(false);
     }
   };
 
   const handleSyncSnapshot = async () => {
+    if (!backendAvailable) {
+      setGhFeedback('Sinkronisasi snapshot langsung ke GitHub memerlukan server Node (server.ts) aktif dengan GITHUB_TOKEN di Secrets.');
+      return;
+    }
     setGhBusy(true);
     setGhFeedback(null);
     try {
       const resp = await fetch('/api/github/sync-snapshot', { method: 'POST' });
-      const data = (await resp.json()) as { synced?: boolean; path?: string; error?: string };
-      if (!resp.ok) {
-        setGhFeedback(data.error || 'Gagal menyinkronkan snapshot ke GitHub.');
+      const data = await parseJsonIfAvailable<{ synced?: boolean; path?: string; error?: string }>(resp);
+      if (!resp.ok || !data) {
+        setGhFeedback(data?.error || 'Gagal menyinkronkan snapshot ke GitHub.');
       } else {
         setGhFeedback(`Snapshot tersinkronisasi ke ${data.path}`);
       }
