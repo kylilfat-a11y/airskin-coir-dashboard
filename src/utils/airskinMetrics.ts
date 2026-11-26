@@ -1,9 +1,4 @@
-import type {
-  DashboardMode,
-  PerformanceStatus,
-  TelemetryPoint,
-  TimeRangeFilter,
-} from '../types/airskin';
+import type { TelemetryPoint, TimeRangeFilter } from '../types/airskin';
 
 export function calcRemovalEfficiency(
   inlet: number | null | undefined,
@@ -31,14 +26,14 @@ export function filterTelemetryByRange(
   if (points.length === 0) return [];
   const latestMs = new Date(points[points.length - 1].timestamp).getTime();
   const windowSeconds: Record<TimeRangeFilter, number> = {
-    '1m': 60,
-    '5m': 300,
-    '15m': 900,
     '1h': 3600,
+    '6h': 6 * 3600,
+    '24h': 24 * 3600,
+    '7d': 7 * 24 * 3600,
   };
   const cutoff = latestMs - windowSeconds[range] * 1000;
   const filtered = points.filter((p) => new Date(p.timestamp).getTime() >= cutoff);
-  return filtered.length >= 2 ? filtered : points.slice(-Math.min(points.length, 6));
+  return filtered.length >= 2 ? filtered : points.slice(-Math.min(points.length, 4));
 }
 
 export function formatDuration(totalSeconds: number): string {
@@ -51,10 +46,13 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 export function formatTimestamp(iso: string | null): string {
-  if (!iso) return 'Belum ada pembaruan';
+  if (!iso) return 'Menunggu data sensor';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Belum ada pembaruan';
-  return d.toLocaleTimeString('id-ID', {
+  if (Number.isNaN(d.getTime())) return 'Menunggu data sensor';
+  return d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -67,11 +65,23 @@ export function formatShortTime(iso: string): string {
   return d.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
+  });
+}
+
+export function formatDateTimeFull(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '--';
+  return d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
     second: '2-digit',
   });
 }
 
-function avgField(
+export function avgField(
   points: TelemetryPoint[],
   getter: (p: TelemetryPoint) => number | null,
 ): number | null {
@@ -81,119 +91,48 @@ function avgField(
   return Number((sum / vals.length).toFixed(1));
 }
 
-export interface ComputedPerformanceSummary {
-  hasData: boolean;
-  isSimulated: boolean;
-  status: PerformanceStatus;
-  durationSeconds: number;
-  latestPoint: TelemetryPoint | null;
-  avgPm25Inlet: number | null;
-  avgPm25Outlet: number | null;
-  avgPm10Inlet: number | null;
-  avgPm10Outlet: number | null;
-  latestPm25Reduction: number | null;
-  latestPm10Reduction: number | null;
-  avgPm25Reduction: number | null;
-  avgPm10Reduction: number | null;
-  narrative: string;
+function escapeCsvCell(val: string | number | null | undefined): string {
+  const str = val === null || val === undefined ? '' : String(val);
+  // Cegah injeksi formula pada aplikasi spreadsheet
+  const safe = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+  return `"${safe.replace(/"/g, '""')}"`;
 }
 
-export function computePerformanceSummary(
-  mode: DashboardMode,
-  deviceConnected: boolean,
-  liveTelemetry: TelemetryPoint[],
-  simulationTelemetry: TelemetryPoint[],
-  liveDurationSeconds: number,
-  simulationDurationSeconds: number,
-): ComputedPerformanceSummary {
-  const isSimulated = mode === 'simulation';
-  const activeSeries = isSimulated
-    ? simulationTelemetry
-    : deviceConnected
-      ? liveTelemetry
-      : [];
+export function exportTelemetryCsv(points: TelemetryPoint[], filenamePrefix: string, isSimulated: boolean): void {
+  const headers = [
+    'Waktu',
+    'Sumber Data',
+    'PM2.5 Masuk (ug/m3)',
+    'PM2.5 Keluar (ug/m3)',
+    'Efisiensi PM2.5 (%)',
+    'PM10 Masuk (ug/m3)',
+    'PM10 Keluar (ug/m3)',
+    'Efisiensi PM10 (%)',
+  ];
 
-  const durationSeconds = isSimulated
-    ? simulationDurationSeconds
-    : deviceConnected
-      ? liveDurationSeconds
-      : 0;
+  const rows = points.map((pt) => {
+    const eff25 = calcRemovalEfficiency(pt.pm25Inlet, pt.pm25Outlet);
+    const eff10 = calcRemovalEfficiency(pt.pm10Inlet, pt.pm10Outlet);
+    return [
+      escapeCsvCell(formatDateTimeFull(pt.timestamp)),
+      escapeCsvCell(isSimulated ? 'DATA SIMULASI' : 'SENSOR ESP32'),
+      escapeCsvCell(pt.pm25Inlet),
+      escapeCsvCell(pt.pm25Outlet),
+      escapeCsvCell(eff25),
+      escapeCsvCell(pt.pm10Inlet),
+      escapeCsvCell(pt.pm10Outlet),
+      escapeCsvCell(eff10),
+    ].join(',');
+  });
 
-  if (activeSeries.length === 0) {
-    return {
-      hasData: false,
-      isSimulated,
-      status: 'Data unavailable',
-      durationSeconds: 0,
-      latestPoint: null,
-      avgPm25Inlet: null,
-      avgPm25Outlet: null,
-      avgPm10Inlet: null,
-      avgPm10Outlet: null,
-      latestPm25Reduction: null,
-      latestPm10Reduction: null,
-      avgPm25Reduction: null,
-      avgPm10Reduction: null,
-      narrative:
-        'Perangkat ESP32 dan sensor partikulat belum terhubung pada mode Live IoT Monitoring sehingga data pengukuran belum tersedia. Hubungkan perangkat keras atau beralih ke Simulation Mode untuk meninjau ilustrasi alur sistem filtrasi.',
-    };
-  }
-
-  const latestPoint = activeSeries[activeSeries.length - 1];
-  const avgPm25Inlet = avgField(activeSeries, (p) => p.pm25Inlet);
-  const avgPm25Outlet = avgField(activeSeries, (p) => p.pm25Outlet);
-  const avgPm10Inlet = avgField(activeSeries, (p) => p.pm10Inlet);
-  const avgPm10Outlet = avgField(activeSeries, (p) => p.pm10Outlet);
-
-  const latestPm25Reduction = calcRemovalEfficiency(
-    latestPoint.pm25Inlet,
-    latestPoint.pm25Outlet,
-  );
-  const latestPm10Reduction = calcRemovalEfficiency(
-    latestPoint.pm10Inlet,
-    latestPoint.pm10Outlet,
-  );
-  const avgPm25Reduction = calcRemovalEfficiency(avgPm25Inlet, avgPm25Outlet);
-  const avgPm10Reduction = calcRemovalEfficiency(avgPm10Inlet, avgPm10Outlet);
-
-  const status: PerformanceStatus = isSimulated ? 'Simulation' : 'Monitoring';
-
-  let narrative: string;
-  if (isSimulated) {
-    const pm25Dir =
-      avgPm25Inlet !== null && avgPm25Outlet !== null && avgPm25Outlet < avgPm25Inlet
-        ? 'lebih rendah dibandingkan'
-        : 'sebanding dengan';
-    const pm10Note =
-      avgPm10Reduction !== null
-        ? ` serta estimasi penurunan PM10 rata-rata sebesar ${avgPm10Reduction}%`
-        : '';
-    const pm25Note =
-      avgPm25Reduction !== null ? ` (estimasi penurunan ${avgPm25Reduction}%)` : '';
-    narrative = `Pada simulasi ini, konsentrasi rata-rata PM2.5 setelah melewati sistem filtrasi (${avgPm25Outlet ?? '--'} µg/m³) ${pm25Dir} konsentrasi pada sisi inlet (${avgPm25Inlet ?? '--'} µg/m³)${pm25Note}${pm10Note}. Nilai ini merupakan ilustrasi performa sistem dan belum menjadi hasil pengujian prototipe.`;
-  } else {
-    const hasOutlet = latestPoint.pm25Outlet !== null && latestPoint.pm10Outlet !== null;
-    if (hasOutlet) {
-      narrative = `Pemantauan sensor aktual mencatat rata-rata PM2.5 inlet ${avgPm25Inlet ?? '--'} µg/m³ dan outlet ${avgPm25Outlet ?? '--'} µg/m³ (${avgPm25Reduction ?? '--'}% selisih), serta PM10 inlet ${avgPm10Inlet ?? '--'} µg/m³ dan outlet ${avgPm10Outlet ?? '--'} µg/m³ (${avgPm10Reduction ?? '--'}% selisih) selama durasi ${formatDuration(durationSeconds)}.`;
-    } else {
-      narrative = `Perangkat ESP32 aktif mengirimkan data sisi inlet (PM2.5 rata-rata ${avgPm25Inlet ?? '--'} µg/m³, PM10 rata-rata ${avgPm10Inlet ?? '--'} µg/m³), sedangkan sensor sisi outlet belum mengirimkan nilai pembacaan.`;
-    }
-  }
-
-  return {
-    hasData: true,
-    isSimulated,
-    status,
-    durationSeconds,
-    latestPoint,
-    avgPm25Inlet,
-    avgPm25Outlet,
-    avgPm10Inlet,
-    avgPm10Outlet,
-    latestPm25Reduction,
-    latestPm10Reduction,
-    avgPm25Reduction,
-    avgPm10Reduction,
-    narrative,
-  };
+  const csvContent = [headers.map(escapeCsvCell).join(','), ...rows].join('\n');
+  const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

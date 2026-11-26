@@ -20,13 +20,13 @@ export const BeforeAfterBarChart: React.FC<BeforeAfterBarChartProps> = ({
 }) => {
   const rows = [
     {
-      label: 'PM2.5 Rata-rata',
+      label: 'Rata-rata PM2.5',
       inlet: avgPm25Inlet,
       outlet: avgPm25Outlet,
       reduction: calcRemovalEfficiency(avgPm25Inlet, avgPm25Outlet),
     },
     {
-      label: 'PM10 Rata-rata',
+      label: 'Rata-rata PM10',
       inlet: avgPm10Inlet,
       outlet: avgPm10Outlet,
       reduction: calcRemovalEfficiency(avgPm10Inlet, avgPm10Outlet),
@@ -47,7 +47,7 @@ export const BeforeAfterBarChart: React.FC<BeforeAfterBarChartProps> = ({
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="font-display text-base font-semibold text-[#103B66]">
-              Perbandingan Sebelum vs Sesudah Filtrasi
+              Perbandingan Konsentrasi Sebelum dan Sesudah Filtrasi
             </h3>
             <span
               className={`text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${
@@ -58,22 +58,22 @@ export const BeforeAfterBarChart: React.FC<BeforeAfterBarChartProps> = ({
                     : 'bg-[#EAF6FF] text-[#103B66]/70 border-[#B9E0F8]'
               }`}
             >
-              {isSimulated ? 'SIMULATED DATA' : hasData ? 'LIVE IoT DATA' : 'DATA UNAVAILABLE'}
+              {isSimulated ? 'DATA SIMULASI' : hasData ? 'DATA AKTUAL' : 'MENUNGGU DATA'}
             </span>
           </div>
           <p className="text-xs text-[#176FAF]/85 mt-0.5">
-            Komparasi konsentrasi rata-rata Inlet (sebelum media) dan Outlet (setelah melewati susunan filter).
+            Komparasi konsentrasi rata-rata udara masuk dan udara keluar pada panel AIRSKIN COIR.
           </p>
         </div>
 
         <div className="flex items-center gap-4 text-xs font-medium">
           <span className="inline-flex items-center gap-1.5 text-[#103B66]">
             <span className="w-3 h-3 rounded-sm bg-[#176FAF] inline-block" />
-            Sebelum (Inlet)
+            Udara Masuk
           </span>
           <span className="inline-flex items-center gap-1.5 text-[#103B66]">
             <span className="w-3 h-3 rounded-sm bg-[#72B89A] inline-block" />
-            Sesudah (Outlet)
+            Udara Keluar
           </span>
         </div>
       </div>
@@ -81,7 +81,7 @@ export const BeforeAfterBarChart: React.FC<BeforeAfterBarChartProps> = ({
       {!hasData ? (
         <div className="h-40 rounded-xl border border-dashed border-[#B9E0F8] bg-[#EAF6FF]/50 flex items-center justify-center px-6 text-center">
           <p className="text-sm text-[#103B66]/75">
-            Grafik perbandingan belum tersedia karena perangkat ESP32 belum terhubung.
+            Menunggu data sensor. Perbandingan baru dapat ditampilkan setelah tersedia pembacaan masuk dan keluar yang valid.
           </p>
         </div>
       ) : (
@@ -97,14 +97,13 @@ export const BeforeAfterBarChart: React.FC<BeforeAfterBarChartProps> = ({
                   <span className="text-xs font-mono font-semibold text-[#176FAF] tabular-nums">
                     {row.reduction !== null
                       ? `Penurunan ${row.reduction}% ${isSimulated ? '(Simulasi)' : ''}`
-                      : 'Outlet belum terbaca'}
+                      : 'Data keluar belum tersedia'}
                   </span>
                 </div>
 
-                {/* Inlet bar */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#103B66]/75">Inlet (Udara Masuk)</span>
+                    <span className="text-[#103B66]/75">Udara Masuk</span>
                     <span className="font-mono font-semibold text-[#176FAF] tabular-nums">
                       {row.inlet !== null ? `${row.inlet} µg/m³` : '--'}
                     </span>
@@ -117,10 +116,9 @@ export const BeforeAfterBarChart: React.FC<BeforeAfterBarChartProps> = ({
                   </div>
                 </div>
 
-                {/* Outlet bar */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#103B66]/75">Outlet (Udara Keluar)</span>
+                    <span className="text-[#103B66]/75">Udara Keluar</span>
                     <span className="font-mono font-semibold text-[#2F6F54] tabular-nums">
                       {row.outlet !== null ? `${row.outlet} µg/m³` : '--'}
                     </span>

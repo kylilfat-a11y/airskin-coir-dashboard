@@ -19,7 +19,7 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
   points,
   metric,
   isSimulated,
-  emptyMessage = 'Belum ada pembacaan sensor aktif. Hubungkan ESP32 atau aktifkan Simulation Mode.',
+  emptyMessage = 'Menunggu data sensor masuk dari perangkat ESP32.',
 }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
@@ -114,21 +114,20 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
                   : 'bg-[#72B89A]/15 text-[#2F6F54] border-[#72B89A]/50'
               }`}
             >
-              {isSimulated ? 'SIMULATED DATA' : 'LIVE IoT DATA'}
+              {isSimulated ? 'DATA SIMULASI' : 'DATA AKTUAL'}
             </span>
           </div>
           <p className="text-xs text-[#176FAF]/85 mt-0.5">{subtitle}</p>
         </div>
 
-        {/* Interactive Legend */}
         <div className="flex items-center gap-4 text-xs font-medium">
           <span className="inline-flex items-center gap-1.5 text-[#103B66]">
             <span className="w-3 h-0.5 bg-[#176FAF] inline-block" />
-            Inlet ({unit})
+            Udara Masuk ({unit})
           </span>
           <span className="inline-flex items-center gap-1.5 text-[#103B66]">
             <span className="w-3 h-0.5 bg-[#72B89A] inline-block" />
-            Outlet ({unit})
+            Udara Keluar ({unit})
           </span>
         </div>
       </div>
@@ -147,7 +146,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
               aria-label={title}
               onMouseLeave={() => setHoverIdx(null)}
             >
-              {/* Grid lines & Y-axis ticks */}
               {yTicks.map((tickVal) => {
                 const y = getY(tickVal);
                 return (
@@ -173,7 +171,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
                 );
               })}
 
-              {/* X-axis labels */}
               {series.map((pt, idx) => {
                 const showLabel =
                   idx === 0 ||
@@ -193,7 +190,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
                 );
               })}
 
-              {/* Inlet line */}
               {inletPath && (
                 <path
                   d={inletPath}
@@ -205,7 +201,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
                 />
               )}
 
-              {/* Outlet line */}
               {outletPath && (
                 <path
                   d={outletPath}
@@ -217,7 +212,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
                 />
               )}
 
-              {/* Active crosshair */}
               {activeIndex !== null && (
                 <line
                   x1={getX(activeIndex)}
@@ -230,7 +224,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
                 />
               )}
 
-              {/* Data markers + invisible hit targets */}
               {series.map((pt, idx) => {
                 const x = getX(idx);
                 const isSelected = activeIndex === idx;
@@ -273,7 +266,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             </svg>
           </div>
 
-          {/* Interactive Readout Strip */}
           {activePoint && (
             <div className="mt-3 pt-3 border-t border-[#E2F1FC] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div>
@@ -283,19 +275,19 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
                 </span>
               </div>
               <div>
-                <span className="text-[#103B66]/65 block">Inlet</span>
+                <span className="text-[#103B66]/65 block">Udara Masuk</span>
                 <span className="font-mono font-semibold text-[#176FAF] tabular-nums">
                   {activePoint.inlet !== null ? `${activePoint.inlet} ${unit}` : '--'}
                 </span>
               </div>
               <div>
-                <span className="text-[#103B66]/65 block">Outlet</span>
+                <span className="text-[#103B66]/65 block">Udara Keluar</span>
                 <span className="font-mono font-semibold text-[#2F6F54] tabular-nums">
                   {activePoint.outlet !== null ? `${activePoint.outlet} ${unit}` : '--'}
                 </span>
               </div>
               <div>
-                <span className="text-[#103B66]/65 block">Selisih / Removal</span>
+                <span className="text-[#103B66]/65 block">Efisiensi Sesaat</span>
                 <span className="font-mono font-semibold text-[#103B66] tabular-nums">
                   {activeEfficiency !== null ? `${activeEfficiency}%` : '--'}
                 </span>
