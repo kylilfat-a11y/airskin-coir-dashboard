@@ -8,9 +8,9 @@ export function buildClientSimulationPoint(
   effPm10Pct: number,
   timestampIso: string,
 ): TelemetryPoint {
-  const drift = Math.sin(stepIndex * 0.45) * 3.2 + Math.cos(stepIndex * 0.22) * 1.8;
+  const drift = Math.sin(stepIndex * 0.45) * 3.0 + Math.cos(stepIndex * 0.22) * 1.6;
   const pm25In = Number(Math.max(2, basePm25 + drift).toFixed(1));
-  const pm10In = Number(Math.max(4, basePm10 + drift * 1.35).toFixed(1));
+  const pm10In = Number(Math.max(4, basePm10 + drift * 1.3).toFixed(1));
 
   const eff25 = Math.max(0, Math.min(99, effPm25Pct)) / 100;
   const eff10 = Math.max(0, Math.min(99, effPm10Pct)) / 100;
@@ -37,9 +37,6 @@ export function seedClientSimulation(
 ): TelemetryPoint[] {
   const now = Date.now();
   const offsetsMs = [
-    6 * 24 * 3600_000,
-    4 * 24 * 3600_000,
-    2 * 24 * 3600_000,
     20 * 3600_000,
     12 * 3600_000,
     5 * 3600_000,
@@ -48,7 +45,6 @@ export function seedClientSimulation(
     45 * 60_000,
     30 * 60_000,
     20 * 60_000,
-    15 * 60_000,
     10 * 60_000,
     5 * 60_000,
     2 * 60_000,
@@ -76,52 +72,22 @@ export function createInitialClientState(): SystemStatePayload {
     deviceConnected: false,
     connectionState: 'Terputus',
     lastUpdatedAt,
-    liveDurationSeconds: 0,
     liveTelemetry: [],
     simulationTelemetry: seeded,
     simulation: {
       running: false,
-      paused: false,
       initialPm25Inlet: 62.0,
       initialPm10Inlet: 98.0,
       efficiencyPm25Pct: 45.0,
       efficiencyPm10Pct: 55.0,
       startedAt,
-      elapsedSeconds: 0,
     },
     deviceStatus: {
-      connectionState: 'Terputus',
-      esp32Connected: false,
-      pmSensorConnected: false,
-      fanStatus: 'Terputus',
-      dataTransmissionStatus: 'Terputus',
+      esp32Status: 'Terputus',
+      sensorPmStatus: 'Terputus',
+      kipasDcStatus: 'Terputus',
       lastDataReceived: null,
-      esp32DeviceId: 'ESP32-WROOM-32E-AC01',
-      mqttTopic: 'airskin/coir/panel01/telemetry',
-      firmwareVersion: 'airskin-fw-2.1.0',
     },
-    maintenanceRecords: [
-      {
-        id: 'mnt-init-01',
-        tanggal: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        komponen: 'Panel & Kipas DC',
-        tindakan: 'Pemasangan Awal Prototipe Modul Fasad',
-        catatan:
-          'Susunan casing, nonwoven, media serabut kelapa, jaring penyangga, dan kipas DC terpasang rapi untuk persiapan uji.',
-        petugas: 'Tim Riset AIRSKIN COIR',
-        jenis: 'pemeriksaan',
-      },
-    ],
-    lastFilterInspectionAt: null,
-    nextInspectionSchedule: 'Jadwal pemeriksaan berkala setiap 14 hari operasional',
-    sensorSettings: {
-      intervalKirimDetik: 5,
-      topikMqtt: 'airskin/coir/panel01/telemetry',
-      ambangPm25Peringatan: 55,
-      ambangPm10Peringatan: 100,
-      fanPwmPersen: 65,
-    },
-    githubRepo: 'kylilfat-a11y/airskin-coir-dashboard',
   };
 }
 
