@@ -1,11 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import { Info, Send } from 'lucide-react';
-import type { SystemStatePayload, TimeRangeFilter } from '../types/airskin';
+import type {
+  FilterConfigKey,
+  SimulationScenarioKey,
+  SystemStatePayload,
+  TimeRangeFilter,
+} from '../types/airskin';
 import { InteractiveTrendChart } from '../components/InteractiveTrendChart';
+import { SimulationSelector } from '../components/SimulationSelector';
 
 interface LiveMonitoringPageProps {
   state: SystemStatePayload;
   onToggleMode: (mode: 'menunggu_koneksi' | 'data_simulasi') => void;
+  onChangeSimulationPreset: (
+    scenario: SimulationScenarioKey,
+    filterConfig: FilterConfigKey,
+  ) => void;
   onSendTestPacket: (payload: {
     pm25Inlet: number;
     pm25Outlet: number | null;
@@ -24,6 +34,7 @@ const TIME_FILTERS: Array<{ id: TimeRangeFilter; label: string; hours: number }>
 export const LiveMonitoringPage: React.FC<LiveMonitoringPageProps> = ({
   state,
   onToggleMode,
+  onChangeSimulationPreset,
   onSendTestPacket,
 }) => {
   const [range, setRange] = useState<TimeRangeFilter>('24h');
@@ -36,6 +47,7 @@ export const LiveMonitoringPage: React.FC<LiveMonitoringPageProps> = ({
 
   const { telemetry, config, mode } = state;
   const isSim = mode === 'data_simulasi';
+  const outletAvailable = config.hasOutletSensor || isSim;
   const unit = config.measurementUnit;
   const scale = unit === 'mg/m³' ? 0.001 : 1;
   const dec = unit === 'mg/m³' ? 3 : 1;
@@ -53,7 +65,7 @@ export const LiveMonitoringPage: React.FC<LiveMonitoringPageProps> = ({
 
   const pm25In = latest?.pm25Inlet !== null && latest?.pm25Inlet !== undefined ? latest.pm25Inlet * scale : null;
   const pm25Out =
-    config.hasOutletSensor && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
+    outletAvailable && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
       ? latest.pm25Outlet * scale
       : null;
   const pm25Change =
@@ -65,7 +77,7 @@ export const LiveMonitoringPage: React.FC<LiveMonitoringPageProps> = ({
 
   const pm10In = latest?.pm10Inlet !== null && latest?.pm10Inlet !== undefined ? latest.pm10Inlet * scale : null;
   const pm10Out =
-    config.hasOutletSensor && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
+    outletAvailable && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
       ? latest.pm10Outlet * scale
       : null;
   const pm10Change =
@@ -112,21 +124,17 @@ export const LiveMonitoringPage: React.FC<LiveMonitoringPageProps> = ({
             <Send className="w-3.5 h-3.5 text-[#176FAF]" />
             Kirim Paket Uji ESP32
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              onToggleMode(isSim ? 'menunggu_koneksi' : 'data_simulasi')
-            }
-            className={`rounded-xl px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
-              isSim
-                ? 'bg-[#D7B978] text-[#103B66] font-semibold'
-                : 'bg-[#176FAF] text-white hover:bg-[#103B66]'
-            }`}
-          >
-            {isSim ? 'Matikan DATA SIMULASI' : 'Aktifkan DATA SIMULASI'}
-          </button>
         </div>
       </div>
+
+      {/* Pilihan Sumber Data & Skenario Simulasi */}
+      <SimulationSelector
+        mode={mode}
+        scenario={config.simulationScenario}
+        filterConfig={config.simulationFilterConfig}
+        onToggleMode={onToggleMode}
+        onChangePreset={onChangeSimulationPreset}
+      />
 
       {/* Keterangan Batasan Sensor Partikulat */}
       <div className="rounded-xl border border-[#82C5EF] bg-[#F5FAFF] px-4 py-3 text-xs text-[#103B66] flex items-start gap-2.5">
@@ -269,7 +277,7 @@ export const LiveMonitoringPage: React.FC<LiveMonitoringPageProps> = ({
           data={filteredTelemetry}
           metric="pm25"
           unit={unit}
-          hasOutletSensor={config.hasOutletSensor}
+          hasOutletSensor={outletAvailable}
           isSimulation={isSim}
           onRequestDemo={() => onToggleMode('data_simulasi')}
         />
@@ -315,7 +323,7 @@ export const LiveMonitoringPage: React.FC<LiveMonitoringPageProps> = ({
           data={filteredTelemetry}
           metric="pm10"
           unit={unit}
-          hasOutletSensor={config.hasOutletSensor}
+          hasOutletSensor={outletAvailable}
           isSimulation={isSim}
           onRequestDemo={() => onToggleMode('data_simulasi')}
         />

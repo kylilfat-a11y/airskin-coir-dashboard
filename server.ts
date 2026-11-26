@@ -12,6 +12,7 @@ import type {
   FilterExperimentTrial,
   MaintenanceRecord,
   SensorNodeStatus,
+  SimulationScenarioKey,
   SystemConfig,
   TelemetryPoint,
 } from './src/types/airskin.ts';
@@ -40,6 +41,8 @@ const systemConfig: SystemConfig = {
   refreshIntervalSec: 10,
   measurementUnit: 'µg/m³',
   githubRepo: process.env.GITHUB_REPO || 'kylilfat-a11y/airskin-coir-dashboard',
+  simulationScenario: 'normal',
+  simulationFilterConfig: 'C',
 };
 
 let realTelemetry: TelemetryPoint[] = [];
@@ -162,21 +165,42 @@ const maintenanceRecords: MaintenanceRecord[] = [
   },
 ];
 
+const SCENARIO_BASELINES: Record<
+  SimulationScenarioKey,
+  { pm25Base: number; pm10Base: number; amp: number; label: string }
+> = {
+  pagi_bersih: { pm25Base: 18.4, pm10Base: 31.2, amp: 2.8, label: 'Udara Pagi Bersih' },
+  normal: { pm25Base: 38.6, pm10Base: 61.4, amp: 5.4, label: 'Udara Perkotaan Normal' },
+  lalu_lintas: { pm25Base: 65.2, pm10Base: 98.5, amp: 9.2, label: 'Jam Sibuk Lalu Lintas' },
+  beban_tinggi: { pm25Base: 118.0, pm10Base: 168.4, amp: 14.5, label: 'Beban Partikulat Tinggi' },
+};
+
+const FILTER_SIM_RETENTION: Record<FilterConfigKey, { pm25Pass: number; pm10Pass: number }> = {
+  A: { pm25Pass: 0.68, pm10Pass: 0.6 },
+  B: { pm25Pass: 0.55, pm10Pass: 0.45 },
+  C: { pm25Pass: 0.41, pm10Pass: 0.31 },
+  D: { pm25Pass: 0.98, pm10Pass: 0.98 },
+};
+
 function generateSimulationSeries(): TelemetryPoint[] {
   const now = Date.now();
   const points: TelemetryPoint[] = [];
   const totalPoints = 48;
+  const base = SCENARIO_BASELINES[systemConfig.simulationScenario] || SCENARIO_BASELINES.normal;
+  const retention =
+    FILTER_SIM_RETENTION[systemConfig.simulationFilterConfig] || FILTER_SIM_RETENTION.C;
+
   for (let i = totalPoints - 1; i >= 0; i--) {
     const ts = new Date(now - i * 30 * 60 * 1000).toISOString();
-    const wave = Math.sin(i * 0.45) * 6.5 + Math.cos(i * 0.22) * 3.8;
-    const pm25Inlet = Number((44.2 + wave).toFixed(1));
-    const pm25Outlet = systemConfig.hasOutletSensor
-      ? Number((pm25Inlet * (0.46 + (i % 5) * 0.012)).toFixed(1))
-      : null;
-    const pm10Inlet = Number((68.5 + wave * 1.35).toFixed(1));
-    const pm10Outlet = systemConfig.hasOutletSensor
-      ? Number((pm10Inlet * (0.39 + (i % 4) * 0.01)).toFixed(1))
-      : null;
+    const wave = Math.sin(i * 0.45) * base.amp + Math.cos(i * 0.22) * (base.amp * 0.55);
+    const pm25Inlet = Number(Math.max(4, base.pm25Base + wave).toFixed(1));
+    const pm25Outlet = Number(
+      Math.max(2, pm25Inlet * (retention.pm25Pass + ((i % 5) - 2) * 0.008)).toFixed(1),
+    );
+    const pm10Inlet = Number(Math.max(8, base.pm10Base + wave * 1.35).toFixed(1));
+    const pm10Outlet = Number(
+      Math.max(3, pm10Inlet * (retention.pm10Pass + ((i % 4) - 1.5) * 0.008)).toFixed(1),
+    );
 
     points.push({
       id: `sim-${i}`,
@@ -186,7 +210,7 @@ function generateSimulationSeries(): TelemetryPoint[] {
       pm25Outlet,
       pm10Inlet,
       pm10Outlet,
-      fanPowerW: 4.8,
+      fanPowerW: systemConfig.simulationFilterConfig === 'D' ? 4.2 : 4.8,
       airflowActive: true,
       source: 'simulasi',
     });
@@ -342,6 +366,39 @@ app.post('/api/system/mode', (req, res) => {
     });
   }
   res.json({ mode: currentMode, lastSyncAt });
+});
+
+// Ubah pilihan skenario & konfigurasi media DATA SIMULASI
+app.post('/api/system/simulation', (req, res) => {
+  const body = req.body as {
+    scenario?: SimulationScenarioKey;
+    filterConfig?: FilterConfigKey;
+    activate?: boolean;
+  };
+  if (
+    body.scenario &&
+    ['pagi_bersih', 'normal', 'lalu_lintas', 'beban_tinggi'].includes(body.scenario)
+  ) {
+    systemConfig.simulationScenario = body.scenario;
+  }
+  if (body.filterConfig && ['A', 'B', 'C', 'D'].includes(body.filterConfig)) {
+    systemConfig.simulationFilterConfig = body.filterConfig;
+  }
+  if (body.activate !== false) {
+    currentMode = 'data_simulasi';
+  }
+  simulationSeries = generateSimulationSeries();
+  notifications.unshift({
+    id: `notif-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    level: 'warning',
+    message: `DATA SIMULASI diperbarui: ${SCENARIO_BASELINES[systemConfig.simulationScenario].label} · Konfigurasi ${systemConfig.simulationFilterConfig}.`,
+  });
+  res.json({
+    mode: currentMode,
+    simulationScenario: systemConfig.simulationScenario,
+    simulationFilterConfig: systemConfig.simulationFilterConfig,
+  });
 });
 
 // Endpoint penerimaan data sensor ESP32 (HTTP POST / MQTT Bridge)

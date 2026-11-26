@@ -10,19 +10,30 @@ import {
   Radio,
   Wind,
 } from 'lucide-react';
-import type { NavSection, SystemStatePayload } from '../types/airskin';
+import type {
+  FilterConfigKey,
+  NavSection,
+  SimulationScenarioKey,
+  SystemStatePayload,
+} from '../types/airskin';
 import { InteractiveTrendChart } from '../components/InteractiveTrendChart';
+import { SimulationSelector } from '../components/SimulationSelector';
 
 interface OverviewPageProps {
   state: SystemStatePayload;
   onNavigate: (section: NavSection) => void;
   onToggleMode: (mode: 'menunggu_koneksi' | 'data_simulasi') => void;
+  onChangeSimulationPreset: (
+    scenario: SimulationScenarioKey,
+    filterConfig: FilterConfigKey,
+  ) => void;
 }
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({
   state,
   onNavigate,
   onToggleMode,
+  onChangeSimulationPreset,
 }) => {
   const { telemetry, config, mode, sensors, notifications } = state;
   const [chartMetric, setChartMetric] = useState<'pm25' | 'pm10'>('pm25');
@@ -33,16 +44,17 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
   const latest = telemetry.length > 0 ? telemetry[telemetry.length - 1] : null;
   const isSim = mode === 'data_simulasi';
+  const outletAvailable = config.hasOutletSensor || isSim;
 
   const pm25In = latest?.pm25Inlet !== null && latest?.pm25Inlet !== undefined ? latest.pm25Inlet * scale : null;
   const pm25Out =
-    config.hasOutletSensor && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
+    outletAvailable && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
       ? latest.pm25Outlet * scale
       : null;
 
   const pm10In = latest?.pm10Inlet !== null && latest?.pm10Inlet !== undefined ? latest.pm10Inlet * scale : null;
   const pm10Out =
-    config.hasOutletSensor && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
+    outletAvailable && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
       ? latest.pm10Outlet * scale
       : null;
 
@@ -56,59 +68,23 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Tajuk Halaman Dashboard Monitoring */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66]">
-            Ringkasan Kualitas Udara
-          </h1>
-          <p className="mt-1 text-sm text-[#103B66]/75">
-            Pantau kondisi kualitas udara dan performa sistem filtrasi AIRSKIN COIR secara terintegrasi.
-          </p>
-        </div>
-
-        {/* Sakelar Sumber Data */}
-        <div className="flex items-center gap-1 rounded-xl border border-[#B9E0F8] bg-white p-1 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => onToggleMode('menunggu_koneksi')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-              mode !== 'data_simulasi'
-                ? 'bg-[#176FAF] text-white'
-                : 'text-[#103B66]/75 hover:bg-[#EAF6FF]'
-            }`}
-          >
-            {mode === 'terhubung_esp32' ? 'Data Sensor Aktual' : 'Menunggu Sensor'}
-          </button>
-          <button
-            type="button"
-            onClick={() => onToggleMode('data_simulasi')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-              mode === 'data_simulasi'
-                ? 'bg-[#D7B978] text-[#103B66] font-semibold'
-                : 'text-[#103B66]/75 hover:bg-[#EAF6FF]'
-            }`}
-          >
-            DATA SIMULASI
-          </button>
-        </div>
+      <div>
+        <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66]">
+          Ringkasan Kualitas Udara
+        </h1>
+        <p className="mt-1 text-sm text-[#103B66]/75">
+          Pantau kondisi kualitas udara dan performa sistem filtrasi AIRSKIN COIR secara terintegrasi.
+        </p>
       </div>
 
-      {/* Peringatan Tegas DATA SIMULASI */}
-      {isSim && (
-        <div className="rounded-xl border border-[#D7B978] bg-[#FDF8EC] px-4 py-2.5 text-xs text-[#103B66] flex flex-wrap items-center justify-between gap-2">
-          <span>
-            <strong>DATA SIMULASI:</strong> Perangkat ESP32 belum mengirimkan data aktual. Angka di bawah hanya simulasi pratinjau antarmuka, bukan hasil eksperimen nyata.
-          </span>
-          <button
-            type="button"
-            onClick={() => onToggleMode('menunggu_koneksi')}
-            className="font-semibold text-[#176FAF] underline underline-offset-2 hover:text-[#103B66] whitespace-nowrap"
-          >
-            Kembali ke Menunggu Data Sensor
-          </button>
-        </div>
-      )}
+      {/* Pemilih Sumber Data & Skenario Simulasi */}
+      <SimulationSelector
+        mode={mode}
+        scenario={config.simulationScenario}
+        filterConfig={config.simulationFilterConfig}
+        onToggleMode={onToggleMode}
+        onChangePreset={onChangeSimulationPreset}
+      />
 
       {/* 4 Kartu Informasi Utama: PM2.5 & PM10 Udara Masuk / Keluar */}
       <section aria-label="Konsentrasi Partikulat Utama" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -295,7 +271,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             data={telemetry}
             metric={chartMetric}
             unit={unit}
-            hasOutletSensor={config.hasOutletSensor}
+            hasOutletSensor={outletAvailable}
             isSimulation={isSim}
             onRequestDemo={() => onToggleMode('data_simulasi')}
           />

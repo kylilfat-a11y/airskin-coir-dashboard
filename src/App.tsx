@@ -4,6 +4,7 @@ import type {
   FilterConfigKey,
   MaintenanceStatus,
   NavSection,
+  SimulationScenarioKey,
   SystemConfig,
   SystemStatePayload,
 } from './types/airskin';
@@ -61,6 +62,18 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode }),
+    });
+    await fetchState();
+  }
+
+  async function handleChangeSimulationPreset(
+    scenario: SimulationScenarioKey,
+    filterConfig: FilterConfigKey,
+  ) {
+    await fetch('/api/system/simulation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario, filterConfig, activate: true }),
     });
     await fetchState();
   }
@@ -250,12 +263,14 @@ export default function App() {
                   state={systemState}
                   onNavigate={setActiveSection}
                   onToggleMode={handleToggleMode}
+                  onChangeSimulationPreset={handleChangeSimulationPreset}
                 />
               )}
               {activeSection === 'pemantauan' && (
                 <LiveMonitoringPage
                   state={systemState}
                   onToggleMode={handleToggleMode}
+                  onChangeSimulationPreset={handleChangeSimulationPreset}
                   onSendTestPacket={handleSendTestPacket}
                 />
               )}
@@ -268,7 +283,13 @@ export default function App() {
                   onClearTrials={handleClearTrials}
                 />
               )}
-              {activeSection === 'analisis' && <AirQualityAnalyticsPage state={systemState} />}
+              {activeSection === 'analisis' && (
+                <AirQualityAnalyticsPage
+                  state={systemState}
+                  onToggleMode={handleToggleMode}
+                  onChangeSimulationPreset={handleChangeSimulationPreset}
+                />
+              )}
               {activeSection === 'pemeliharaan' && (
                 <MaintenancePage
                   state={systemState}

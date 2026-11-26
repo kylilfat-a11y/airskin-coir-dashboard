@@ -1,13 +1,27 @@
 import React, { useMemo, useState } from 'react';
 import { Calendar, Download } from 'lucide-react';
-import type { SystemStatePayload } from '../types/airskin';
+import type {
+  FilterConfigKey,
+  SimulationScenarioKey,
+  SystemStatePayload,
+} from '../types/airskin';
 import { InteractiveTrendChart } from '../components/InteractiveTrendChart';
+import { SimulationSelector } from '../components/SimulationSelector';
 
 interface AirQualityAnalyticsPageProps {
   state: SystemStatePayload;
+  onToggleMode: (mode: 'menunggu_koneksi' | 'data_simulasi') => void;
+  onChangeSimulationPreset: (
+    scenario: SimulationScenarioKey,
+    filterConfig: FilterConfigKey,
+  ) => void;
 }
 
-export const AirQualityAnalyticsPage: React.FC<AirQualityAnalyticsPageProps> = ({ state }) => {
+export const AirQualityAnalyticsPage: React.FC<AirQualityAnalyticsPageProps> = ({
+  state,
+  onToggleMode,
+  onChangeSimulationPreset,
+}) => {
   const { telemetry, simulationPreview, config, mode } = state;
   const [dateFilter, setDateFilter] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
@@ -129,10 +143,19 @@ export const AirQualityAnalyticsPage: React.FC<AirQualityAnalyticsPageProps> = (
         </div>
       </div>
 
+      {/* Pilihan Sumber Data & Skenario Simulasi */}
+      <SimulationSelector
+        mode={mode}
+        scenario={config.simulationScenario}
+        filterConfig={config.simulationFilterConfig}
+        onToggleMode={onToggleMode}
+        onChangePreset={onChangeSimulationPreset}
+      />
+
       {/* Label Jelas DATA SIMULASI jika belum terhubung ke perangkat */}
-      {isSimDataset && (
+      {isSimDataset && mode !== 'data_simulasi' && (
         <div className="rounded-xl border border-[#D7B978] bg-[#FDF8EC] px-4 py-3 text-xs text-[#103B66]">
-          <strong>DATA SIMULASI:</strong> Perangkat keras ESP32 belum terhubung. Seluruh grafik dan tabel pada halaman ini menampilkan data simulasi pratinjau agar fungsi analisis dapat ditinjau.
+          <strong>DATA SIMULASI:</strong> Perangkat keras ESP32 belum terhubung. Seluruh grafik dan tabel pada halaman ini menampilkan pratinjau simulasi sesuai pilihan skenario di atas.
         </div>
       )}
 

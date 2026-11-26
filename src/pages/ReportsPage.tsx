@@ -15,6 +15,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ state }) => {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const isSim = mode === 'data_simulasi';
+  const outletAvailable = config.hasOutletSensor || isSim;
   const unit = config.measurementUnit;
   const scale = unit === 'mg/m³' ? 0.001 : 1;
   const dec = unit === 'mg/m³' ? 3 : 1;
@@ -28,12 +29,12 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ state }) => {
     };
     return {
       pm25InAvg: avg(telemetry.map((t) => t.pm25Inlet)),
-      pm25OutAvg: config.hasOutletSensor ? avg(telemetry.map((t) => t.pm25Outlet)) : '--',
+      pm25OutAvg: outletAvailable ? avg(telemetry.map((t) => t.pm25Outlet)) : '--',
       pm10InAvg: avg(telemetry.map((t) => t.pm10Inlet)),
-      pm10OutAvg: config.hasOutletSensor ? avg(telemetry.map((t) => t.pm10Outlet)) : '--',
+      pm10OutAvg: outletAvailable ? avg(telemetry.map((t) => t.pm10Outlet)) : '--',
       totalRows: telemetry.length,
     };
-  }, [telemetry, config.hasOutletSensor, scale, dec]);
+  }, [telemetry, outletAvailable, scale, dec]);
 
   function handleExportCsv() {
     const headers = [
@@ -49,9 +50,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ state }) => {
       t.timestamp,
       t.panelId,
       t.pm25Inlet !== null ? (t.pm25Inlet * scale).toFixed(dec) : '',
-      config.hasOutletSensor && t.pm25Outlet !== null ? (t.pm25Outlet * scale).toFixed(dec) : '',
+      outletAvailable && t.pm25Outlet !== null ? (t.pm25Outlet * scale).toFixed(dec) : '',
       t.pm10Inlet !== null ? (t.pm10Inlet * scale).toFixed(dec) : '',
-      config.hasOutletSensor && t.pm10Outlet !== null ? (t.pm10Outlet * scale).toFixed(dec) : '',
+      outletAvailable && t.pm10Outlet !== null ? (t.pm10Outlet * scale).toFixed(dec) : '',
       t.source === 'esp32' ? 'ESP32 AKTUAL' : 'DATA SIMULASI',
     ]);
     const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -273,7 +274,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ state }) => {
                       {row.pm25Inlet !== null ? (row.pm25Inlet * scale).toFixed(dec) : '--'}
                     </td>
                     <td className="px-5 py-3 text-right">
-                      {config.hasOutletSensor && row.pm25Outlet !== null
+                      {outletAvailable && row.pm25Outlet !== null
                         ? (row.pm25Outlet * scale).toFixed(dec)
                         : '--'}
                     </td>
@@ -281,7 +282,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ state }) => {
                       {row.pm10Inlet !== null ? (row.pm10Inlet * scale).toFixed(dec) : '--'}
                     </td>
                     <td className="px-5 py-3 text-right">
-                      {config.hasOutletSensor && row.pm10Outlet !== null
+                      {outletAvailable && row.pm10Outlet !== null
                         ? (row.pm10Outlet * scale).toFixed(dec)
                         : '--'}
                     </td>

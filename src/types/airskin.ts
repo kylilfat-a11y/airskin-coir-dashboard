@@ -64,6 +64,8 @@ export interface FacadePanel {
 
 export type FilterConfigKey = 'A' | 'B' | 'C' | 'D';
 
+export type SimulationScenarioKey = 'pagi_bersih' | 'normal' | 'lalu_lintas' | 'beban_tinggi';
+
 export interface FilterExperimentTrial {
   id: string;
   configKey: FilterConfigKey;
@@ -104,6 +106,8 @@ export interface SystemConfig {
   refreshIntervalSec: number;
   measurementUnit: 'µg/m³' | 'mg/m³';
   githubRepo: string;
+  simulationScenario: SimulationScenarioKey;
+  simulationFilterConfig: FilterConfigKey;
 }
 
 export interface DeviceNotification {

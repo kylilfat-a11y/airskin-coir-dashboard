@@ -43,15 +43,16 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
   const [saving, setSaving] = useState(false);
 
   const latest = telemetry.length > 0 ? telemetry[telemetry.length - 1] : null;
+  const outletAvailable = config.hasOutletSensor || mode === 'data_simulasi';
   const validPairPm25 =
     latest &&
-    config.hasOutletSensor &&
+    outletAvailable &&
     latest.pm25Inlet !== null &&
     latest.pm25Inlet > 0 &&
     latest.pm25Outlet !== null;
   const validPairPm10 =
     latest &&
-    config.hasOutletSensor &&
+    outletAvailable &&
     latest.pm10Inlet !== null &&
     latest.pm10Inlet > 0 &&
     latest.pm10Outlet !== null;
@@ -184,7 +185,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
               ? latest.pm25Inlet.toFixed(1)
               : '--'}{' '}
             /{' '}
-            {config.hasOutletSensor && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
+            {outletAvailable && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
               ? latest.pm25Outlet.toFixed(1)
               : '--'}
             <span className="ml-1 text-xs font-normal text-[#103B66]/60">µg/m³</span>
@@ -199,7 +200,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
               ? latest.pm10Inlet.toFixed(1)
               : '--'}{' '}
             /{' '}
-            {config.hasOutletSensor && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
+            {outletAvailable && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
               ? latest.pm10Outlet.toFixed(1)
               : '--'}
             <span className="ml-1 text-xs font-normal text-[#103B66]/60">µg/m³</span>
