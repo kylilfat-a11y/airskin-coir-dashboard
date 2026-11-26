@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Building2, CheckCircle2, Fan, Layers, WifiOff } from 'lucide-react';
+import { Activity, AlertTriangle, Building2, CheckCircle2, Layers, WifiOff } from 'lucide-react';
 import type { FacadePanel, SystemStatePayload } from '../types/airskin';
 import { ExplodedFilterDiagram } from '../components/ExplodedFilterDiagram';
 import { FutureBuildingNetwork } from '../components/FutureBuildingNetwork';
@@ -9,35 +9,33 @@ interface FacadePanelsPageProps {
 }
 
 export const FacadePanelsPage: React.FC<FacadePanelsPageProps> = ({ state }) => {
-  const { panels, telemetry, config } = state;
+  const { panels } = state;
   const [selectedId, setSelectedId] = useState<string>(panels[0]?.id || 'AC-01');
+  const [activeSubTab, setActiveSubTab] = useState<'detail' | 'susunan' | 'status'>('detail');
 
   const activePanel: FacadePanel = panels.find((p) => p.id === selectedId) || panels[0];
-  const latest = telemetry.length > 0 ? telemetry[telemetry.length - 1] : null;
-  const scale = config.measurementUnit === 'mg/m³' ? 0.001 : 1;
-  const dec = config.measurementUnit === 'mg/m³' ? 3 : 1;
 
-  function renderStatusIndicator(status: FacadePanel['status']) {
-    if (status === 'Connected') {
+  function renderStatusBadge(status: FacadePanel['status']) {
+    if (status === 'Terhubung') {
       return (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#458B6D]">
           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-          Connected
+          Terhubung
         </span>
       );
     }
-    if (status === 'Needs Inspection') {
+    if (status === 'Perlu Pemeriksaan') {
       return (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#A68338]">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          Needs Inspection
+          Perlu Pemeriksaan
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B]">
         <WifiOff className="w-3.5 h-3.5 shrink-0" />
-        Offline
+        Menunggu Koneksi
       </span>
     );
   }
@@ -47,45 +45,43 @@ export const FacadePanelsPage: React.FC<FacadePanelsPageProps> = ({ state }) => 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66]">
-            Smart Facade Management
+            Pemantauan Panel AIRSKIN COIR
           </h1>
           <p className="mt-1 text-sm text-[#103B66]/75">
-            Architectural module registry, facade zone placement, and layered filtration diagnostics.
+            Visualisasi teknis panel filtrasi pada fasad bangunan, susunan 7 lapisan, dan status operasional unit.
           </p>
         </div>
         <div className="text-xs text-[#176FAF] font-medium">
-          1 Active Prototype Bay (AC-01) · 3 Demo Panels / Planned Modules
+          1 Modul Prototipe Utama (AC-01) · 3 Modul Konsep / Rencana
         </div>
       </div>
 
-      {/* 3D Architectural Visualization + Selectable Panel List */}
+      {/* Visualisasi Fasad Gedung + Daftar Panel */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
-        {/* 3D Isometric Building Visualization */}
         <section className="xl:col-span-7 airskin-card overflow-hidden flex flex-col">
           <div className="border-b border-[#DCEEFB] px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 bg-[#F5FAFF]">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#103B66]">
               <Building2 className="w-4 h-4 text-[#176FAF]" />
-              <span>3D Facade Integration Layout</span>
+              <span>Tata Letak Panel Filtrasi pada Fasad Bangunan</span>
             </div>
             <span className="text-[11px] text-[#103B66]/70">
-              Click any modular pin on the building exterior to inspect
+              Klik pin panel pada gedung untuk memeriksa detail unit
             </span>
           </div>
 
-          <div className="relative flex-1 min-h-[320px] bg-[#EAF6FF]">
+          <div className="relative flex-1 min-h-[310px] bg-[#EAF6FF]">
             <img
               src="/src/assets/images/facade_3d_isometric_1795694950809.jpg"
-              alt="3D isometric building showing AIRSKIN COIR modular filtration panels attached to curtain wall sections"
+              alt="Visualisasi teknis gedung dengan panel filtrasi AIRSKIN COIR pada fasad"
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
             />
-            {/* Interactive Module Hotspots */}
             {panels.map((panel) => {
               const isSelected = panel.id === activePanel.id;
               const statusColor =
-                panel.status === 'Connected'
+                panel.status === 'Terhubung'
                   ? 'bg-[#72B89A] border-white text-[#103B66]'
-                  : panel.status === 'Needs Inspection'
+                  : panel.status === 'Perlu Pemeriksaan'
                     ? 'bg-[#D7B978] border-white text-[#103B66]'
                     : 'bg-[#64748B] border-white text-white';
 
@@ -98,7 +94,7 @@ export const FacadePanelsPage: React.FC<FacadePanelsPageProps> = ({ state }) => 
                   className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-2.5 py-1 font-mono text-xs font-semibold shadow-md transition-transform duration-150 ${statusColor} ${
                     isSelected ? 'scale-110 ring-4 ring-[#429EDB]/45' : 'hover:scale-105'
                   }`}
-                  aria-label={`Select ${panel.label} at ${panel.location}`}
+                  aria-label={`Pilih ${panel.label} di ${panel.location}`}
                 >
                   {panel.id}
                 </button>
@@ -106,26 +102,22 @@ export const FacadePanelsPage: React.FC<FacadePanelsPageProps> = ({ state }) => 
             })}
           </div>
 
-          {/* Legend */}
           <div className="border-t border-[#DCEEFB] px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-xs text-[#103B66]/80 bg-white">
             <div className="flex flex-wrap items-center gap-5">
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs bg-[#72B89A]" /> Connected
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#72B89A]" /> Terhubung
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs bg-[#D7B978]" /> Needs Inspection
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#D7B978]" /> Perlu Pemeriksaan
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs bg-[#64748B]" /> Offline
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#64748B]" /> Menunggu Koneksi
               </span>
             </div>
-            <span className="text-[11px] text-[#103B66]/60">
-              AC-02, AC-03, AC-04 represent planned facade modules
-            </span>
           </div>
         </section>
 
-        {/* Panel Identification Cards */}
+        {/* Daftar Kartu Panel */}
         <section className="xl:col-span-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
           {panels.map((panel) => {
             const isSelected = panel.id === activePanel.id;
@@ -150,19 +142,18 @@ export const FacadePanelsPage: React.FC<FacadePanelsPageProps> = ({ state }) => 
                     </div>
                     <div className="mt-1 text-xs text-[#103B66]/75">{panel.location}</div>
                   </div>
-                  {renderStatusIndicator(panel.status)}
+                  {renderStatusBadge(panel.status)}
                 </div>
 
                 <div className="mt-3 pt-2.5 border-t border-[#DCEEFB] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#103B66]/70">
                   <span>
-                    PM Monitoring:{' '}
+                    Sensor PM:{' '}
                     <strong className="text-[#103B66]">
-                      {panel.pmMonitoringAvailable ? 'Available' : 'Planned'}
+                      {panel.pmMonitoringAvailable ? 'Tersedia' : 'Rencana'}
                     </strong>
                   </span>
                   <span>
-                    Inspection:{' '}
-                    <strong className="text-[#103B66]">{panel.inspectionStatus}</strong>
+                    Inspeksi: <strong className="text-[#103B66]">{panel.inspectionStatus}</strong>
                   </span>
                 </div>
               </button>
@@ -171,75 +162,116 @@ export const FacadePanelsPage: React.FC<FacadePanelsPageProps> = ({ state }) => 
         </section>
       </div>
 
-      {/* Selected Panel Detailed View + Exploded Diagram */}
+      {/* Kontrol Tombol Detail Panel, Susunan Filter, Status Operasional */}
       <section className="airskin-card p-6 space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#DCEEFB] pb-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-b border-[#DCEEFB] pb-4">
           <div>
             <div className="text-xs font-medium text-[#176FAF]">
-              Selected Module Specification · {activePanel.classification}
+              {activePanel.classification} · {activePanel.facadeZone}
             </div>
             <h2 className="mt-0.5 font-[Poppins] text-xl font-semibold text-[#103B66]">
               {activePanel.label} — {activePanel.location}
             </h2>
           </div>
-          {renderStatusIndicator(activePanel.status)}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('detail')}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
+                activeSubTab === 'detail'
+                  ? 'bg-[#176FAF] text-white'
+                  : 'border border-[#B9E0F8] bg-white text-[#103B66] hover:bg-[#EAF6FF]'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              Lihat Detail Panel
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('susunan')}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
+                activeSubTab === 'susunan'
+                  ? 'bg-[#176FAF] text-white'
+                  : 'border border-[#B9E0F8] bg-white text-[#103B66] hover:bg-[#EAF6FF]'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Lihat Susunan Filter
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('status')}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
+                activeSubTab === 'status'
+                  ? 'bg-[#176FAF] text-white'
+                  : 'border border-[#B9E0F8] bg-white text-[#103B66] hover:bg-[#EAF6FF]'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              Status Operasional
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
-            <div className="text-xs font-medium text-[#103B66]/65">Filter Cartridge Condition</div>
-            <div className="text-sm font-semibold text-[#103B66]">{activePanel.inspectionStatus}</div>
-            <div className="text-xs text-[#103B66]/75">{activePanel.cartridgeCondition}</div>
-          </div>
-
-          <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-[#103B66]/65">
-              <Layers className="w-3.5 h-3.5 text-[#D7B978]" />
-              Coconut Coir & Prefilter Media
-            </div>
-            <div className="text-xs font-semibold text-[#103B66]">{activePanel.coirMediaSpec}</div>
-            <div className="text-xs text-[#103B66]/75">{activePanel.nonwovenPrefilterSpec}</div>
-          </div>
-
-          <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-[#103B66]/65">
-              <Fan className="w-3.5 h-3.5 text-[#176FAF]" />
-              DC Fan & Maintenance Date
-            </div>
-            <div className="text-xs font-semibold text-[#103B66]">{activePanel.fanStatus}</div>
-            <div className="font-mono text-xs text-[#103B66]/75">
-              Last maintenance: {activePanel.lastMaintenanceDate}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
-            <div className="text-xs font-medium text-[#103B66]/65">PM Inlet / Outlet Readout</div>
-            {activePanel.pmMonitoringAvailable && latest ? (
-              <div className="space-y-1 font-mono tabular-nums text-xs">
-                <div className="text-[#176FAF] font-semibold">
-                  Inlet PM2.5: {latest.pm25Inlet !== null ? (latest.pm25Inlet * scale).toFixed(dec) : '--'} {config.measurementUnit}
-                </div>
-                <div className="text-[#458B6D] font-semibold">
-                  Outlet PM2.5:{' '}
-                  {config.hasOutletSensor && latest.pm25Outlet !== null
-                    ? `${(latest.pm25Outlet * scale).toFixed(dec)} ${config.measurementUnit}`
-                    : 'Not installed'}
-                </div>
+        {activeSubTab === 'detail' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
+                <div className="text-xs font-medium text-[#103B66]/65">Kondisi Media Serabut Kelapa</div>
+                <div className="text-xs font-semibold text-[#103B66]">{activePanel.coirCondition}</div>
               </div>
-            ) : (
-              <div className="text-xs text-[#103B66]/65">
+              <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
+                <div className="text-xs font-medium text-[#103B66]/65">Kondisi Lapisan Nonwoven</div>
+                <div className="text-xs font-semibold text-[#103B66]">{activePanel.nonwovenCondition}</div>
+              </div>
+              <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
+                <div className="text-xs font-medium text-[#103B66]/65">Status Kipas DC</div>
+                <div className="text-xs font-semibold text-[#103B66]">{activePanel.fanStatus}</div>
+              </div>
+              <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-1">
+                <div className="text-xs font-medium text-[#103B66]/65">Pemeriksaan Terakhir</div>
+                <div className="font-mono text-xs font-semibold text-[#176FAF]">
+                  {activePanel.lastMaintenanceDate}
+                </div>
+                <div className="text-xs text-[#103B66]/75">{activePanel.inspectionStatus}</div>
+              </div>
+            </div>
+            <ExplodedFilterDiagram />
+          </div>
+        )}
+
+        {activeSubTab === 'susunan' && <ExplodedFilterDiagram />}
+
+        {activeSubTab === 'status' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-2">
+              <div className="font-semibold text-[#176FAF]">Status Koneksi Unit</div>
+              <div>{renderStatusBadge(activePanel.status)}</div>
+              <p className="text-[#103B66]/75">
                 {activePanel.pmMonitoringAvailable
-                  ? 'Awaiting Test Data'
-                  : 'Planned module · Hardware not deployed'}
-              </div>
-            )}
+                  ? 'Terintegrasi dengan node kontroler ESP32 utama.'
+                  : 'Unit konsep arsitektural; belum terhubung ke perangkat keras.'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-2">
+              <div className="font-semibold text-[#176FAF]">Status Kipas DC</div>
+              <div className="font-semibold text-[#103B66]">{activePanel.fanStatus}</div>
+              <p className="text-[#103B66]/75">
+                Mengalirkan udara lingkungan melewati lapisan nonwoven dan media serabut kelapa.
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-2">
+              <div className="font-semibold text-[#176FAF]">Kesiapan Pemeliharaan</div>
+              <div className="font-semibold text-[#103B66]">{activePanel.inspectionStatus}</div>
+              <p className="font-mono text-[#103B66]/75">
+                Audit fisik terakhir: {activePanel.lastMaintenanceDate}
+              </p>
+            </div>
           </div>
-        </div>
-
-        <ExplodedFilterDiagram />
+        )}
       </section>
 
-      {/* Future Smart Building Network */}
       <FutureBuildingNetwork />
     </div>
   );

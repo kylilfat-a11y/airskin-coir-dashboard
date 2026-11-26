@@ -1,23 +1,25 @@
 export type NavSection =
-  | 'overview'
-  | 'live'
-  | 'panels'
-  | 'analytics'
-  | 'performance'
-  | 'maintenance'
-  | 'reports'
-  | 'settings';
+  | 'ringkasan'
+  | 'pemantauan'
+  | 'panel'
+  | 'kinerja'
+  | 'analisis'
+  | 'pemeliharaan'
+  | 'laporan'
+  | 'pengaturan';
 
-export type DataSourceMode = 'hardware_standby' | 'demo_simulation' | 'live_esp32';
+export type DataSourceMode = 'menunggu_koneksi' | 'data_simulasi' | 'terhubung_esp32';
+
+export type DeviceConnectionState = 'Terhubung' | 'Terputus' | 'Menunggu koneksi';
 
 export type TimeRangeFilter = '1h' | '6h' | '24h' | '7d';
 
 export type MaintenanceStatus =
-  | 'Good Condition'
-  | 'Inspection Required'
-  | 'Replacement Recommended';
+  | 'Kondisi Baik'
+  | 'Perlu Pemeriksaan'
+  | 'Perlu Pembersihan / Penggantian';
 
-export type PanelConnectionStatus = 'Connected' | 'Needs Inspection' | 'Offline';
+export type PanelOperationalStatus = 'Terhubung' | 'Perlu Pemeriksaan' | 'Menunggu Koneksi';
 
 export interface TelemetryPoint {
   id: string;
@@ -27,17 +29,16 @@ export interface TelemetryPoint {
   pm25Outlet: number | null;
   pm10Inlet: number | null;
   pm10Outlet: number | null;
-  pressureDropPa: number | null;
-  airflowM3h: number | null;
   fanPowerW: number | null;
-  source: 'esp32' | 'demo' | 'uploaded';
+  airflowActive: boolean;
+  source: 'esp32' | 'simulasi';
 }
 
 export interface SensorNodeStatus {
   id: string;
   name: string;
   hardwareModel: string;
-  online: boolean;
+  status: DeviceConnectionState;
   installed: boolean;
   lastReceivedAt: string | null;
   detail: string;
@@ -49,17 +50,16 @@ export interface FacadePanel {
   location: string;
   level: string;
   facadeZone: string;
-  status: PanelConnectionStatus;
-  classification: 'Prototype Bay' | 'Demo Panel · Planned Module';
+  status: PanelOperationalStatus;
+  classification: 'Modul Prototipe Utama' | 'Modul Konsep / Rencana';
   pmMonitoringAvailable: boolean;
   inspectionStatus: MaintenanceStatus;
-  cartridgeCondition: string;
-  coirMediaSpec: string;
-  nonwovenPrefilterSpec: string;
+  coirCondition: string;
+  nonwovenCondition: string;
   fanStatus: string;
   lastMaintenanceDate: string;
-  hotspotX: number; // % on 3D isometric visual
-  hotspotY: number; // % on 3D isometric visual
+  hotspotX: number;
+  hotspotY: number;
 }
 
 export type FilterConfigKey = 'A' | 'B' | 'C' | 'D';
@@ -74,12 +74,9 @@ export interface FilterExperimentTrial {
   pm10Outlet: number;
   pm25Efficiency: number;
   pm10Efficiency: number;
-  pressureDropPa: number | null;
-  airflowM3h: number | null;
-  fanPowerW: number | null;
   recordedAt: string;
   notes: string;
-  isSampleDemo: boolean;
+  isSimulation: boolean;
 }
 
 export interface MaintenanceRecord {
@@ -87,10 +84,9 @@ export interface MaintenanceRecord {
   panelId: string;
   date: string;
   inspector: string;
-  recordType: 'Routine Inspection' | 'Cartridge Replacement' | 'Moisture & Frame Audit';
-  moistureLevelPct: number;
-  visibleDamage: boolean;
-  dustLoadingNote: string;
+  recordType: 'Pemeriksaan Rutin' | 'Penggantian Media' | 'Audit Kelembapan & Casing';
+  coirCondition: string;
+  nonwovenCondition: string;
   status: MaintenanceStatus;
   notes: string;
 }
@@ -101,22 +97,32 @@ export interface SystemConfig {
   firmwareVersion: string;
   wifiSsid: string;
   wifiSignalDbm: number | null;
+  mqttBrokerTopic: string;
   hasOutletSensor: boolean;
-  hasPressureSensor: boolean;
-  hasAirflowSensor: boolean;
+  dcFanInstalled: boolean;
   activePanelId: string;
   refreshIntervalSec: number;
   measurementUnit: 'µg/m³' | 'mg/m³';
   githubRepo: string;
 }
 
+export interface DeviceNotification {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warning' | 'success';
+  message: string;
+}
+
 export interface SystemStatePayload {
   mode: DataSourceMode;
+  connectionState: DeviceConnectionState;
   lastSyncAt: string | null;
   config: SystemConfig;
   sensors: SensorNodeStatus[];
   telemetry: TelemetryPoint[];
+  simulationPreview: TelemetryPoint[];
   panels: FacadePanel[];
   experiments: FilterExperimentTrial[];
   maintenance: MaintenanceRecord[];
+  notifications: DeviceNotification[];
 }

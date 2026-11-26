@@ -6,6 +6,7 @@ interface InteractiveTrendChartProps {
   metric: 'pm25' | 'pm10';
   unit: 'µg/m³' | 'mg/m³';
   hasOutletSensor: boolean;
+  isSimulation?: boolean;
   onRequestDemo?: () => void;
 }
 
@@ -14,6 +15,7 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
   metric,
   unit,
   hasOutletSensor,
+  isSimulation = false,
   onRequestDemo,
 }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -41,20 +43,19 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
   }, [data, metric, scaleFactor, hasOutletSensor]);
 
   const width = 760;
-  const height = 270;
+  const height = 260;
   const pad = { top: 20, right: 20, bottom: 38, left: 52 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
 
   if (series.length === 0) {
     return (
-      <div className="relative flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#82C5EF] bg-[#F5FAFF] px-6 py-16 text-center">
-        <svg viewBox="0 0 320 90" className="w-64 h-20 mb-4 opacity-60" aria-hidden="true">
-          <line x1="20" y1="75" x2="300" y2="75" stroke="#B9E0F8" strokeWidth="1.5" />
-          <line x1="20" y1="45" x2="300" y2="45" stroke="#B9E0F8" strokeWidth="1" strokeDasharray="4 4" />
-          <line x1="20" y1="15" x2="300" y2="15" stroke="#B9E0F8" strokeWidth="1" strokeDasharray="4 4" />
+      <div className="relative flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#82C5EF] bg-[#F5FAFF] px-6 py-14 text-center">
+        <svg viewBox="0 0 320 80" className="w-60 h-16 mb-3 opacity-60" aria-hidden="true">
+          <line x1="20" y1="68" x2="300" y2="68" stroke="#B9E0F8" strokeWidth="1.5" />
+          <line x1="20" y1="40" x2="300" y2="40" stroke="#B9E0F8" strokeWidth="1" strokeDasharray="4 4" />
           <path
-            d="M 20 55 Q 90 42 160 50 T 300 44"
+            d="M 20 50 Q 95 36 160 46 T 300 38"
             fill="none"
             stroke="#82C5EF"
             strokeWidth="2"
@@ -62,10 +63,10 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
           />
         </svg>
         <p className="font-[Poppins] text-base font-semibold text-[#103B66]">
-          Waiting for sensor data
+          Menunggu data sensor
         </p>
         <p className="mt-1 max-w-md text-xs text-[#103B66]/70">
-          Connect an ESP32 node to POST readings to <span className="font-mono">/api/telemetry</span> or switch to labeled Demo Simulation to preview trend visualization.
+          Hubungkan perangkat ESP32 ke endpoint <span className="font-mono">/api/telemetry</span> atau aktifkan mode DATA SIMULASI untuk melihat pratinjau grafik tren.
         </p>
         {onRequestDemo && (
           <button
@@ -73,7 +74,7 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             onClick={onRequestDemo}
             className="mt-4 rounded-xl bg-[#176FAF] px-4 py-2 text-xs font-medium text-white hover:bg-[#103B66] transition-colors whitespace-nowrap"
           >
-            Preview with Demo Simulation
+            Tampilkan Pratinjau DATA SIMULASI
           </button>
         )}
       </div>
@@ -101,30 +102,39 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
   const xTickIndices =
     series.length <= 5
       ? series.map((_, i) => i)
-      : [0, Math.floor(series.length * 0.25), Math.floor(series.length * 0.5), Math.floor(series.length * 0.75), series.length - 1];
+      : [
+          0,
+          Math.floor(series.length * 0.25),
+          Math.floor(series.length * 0.5),
+          Math.floor(series.length * 0.75),
+          series.length - 1,
+        ];
 
   const activePoint = hoverIdx !== null && series[hoverIdx] ? series[hoverIdx] : null;
 
   return (
     <div className="relative w-full">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[#103B66]/80">
-        <div className="flex items-center gap-5">
+        <div className="flex flex-wrap items-center gap-5">
           <span className="inline-flex items-center gap-2 font-medium">
             <span className="h-2.5 w-5 rounded-xs bg-[#176FAF]" aria-hidden="true" />
-            Inlet ({metric === 'pm25' ? 'PM2.5' : 'PM10'})
+            Udara Masuk ({metric === 'pm25' ? 'PM2.5' : 'PM10'})
           </span>
           {hasOutletSensor && outletPoints.length > 0 ? (
             <span className="inline-flex items-center gap-2 font-medium">
               <span className="h-2.5 w-5 rounded-xs bg-[#72B89A]" aria-hidden="true" />
-              Outlet (Filtered)
+              Udara Keluar (Terfiltrasi)
             </span>
           ) : (
             <span className="text-[#103B66]/55">
-              Outlet sensor not installed · Single-sensor inlet stream
+              Sensor udara keluar belum terpasang · Menampilkan aliran udara masuk
             </span>
           )}
         </div>
-        <span className="font-mono text-[11px] text-[#103B66]/65">Unit: {unit}</span>
+        <div className="flex items-center gap-3 font-mono text-[11px] text-[#103B66]/70">
+          {isSimulation && <span className="font-semibold text-[#A68338]">DATA SIMULASI</span>}
+          <span>Satuan: {unit}</span>
+        </div>
       </div>
 
       <div className="relative w-full overflow-x-auto">
@@ -132,7 +142,7 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
           viewBox={`0 0 ${width} ${height}`}
           className="w-full min-w-[540px] select-none"
           role="img"
-          aria-label={`Interactive ${metric.toUpperCase()} concentration trend chart`}
+          aria-label={`Grafik tren konsentrasi ${metric.toUpperCase()}`}
         >
           <defs>
             <linearGradient id={`inletGrad-${metric}`} x1="0" y1="0" x2="0" y2="1">
@@ -141,7 +151,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             </linearGradient>
           </defs>
 
-          {/* Horizontal Gridlines & Y-axis Labels */}
           {yTicks.map((tickVal, idx) => {
             const y = getY(tickVal);
             return (
@@ -166,11 +175,10 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             );
           })}
 
-          {/* X-axis Labels */}
           {xTickIndices.map((idx) => {
             const point = series[idx];
             if (!point) return null;
-            const timeLabel = new Date(point.timestamp).toLocaleTimeString([], {
+            const timeLabel = new Date(point.timestamp).toLocaleTimeString('id-ID', {
               hour: '2-digit',
               minute: '2-digit',
             });
@@ -187,7 +195,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             );
           })}
 
-          {/* Inlet Area Fill */}
           {inletPoints.length > 1 && (
             <polygon
               points={`${getX(0)},${pad.top + plotH} ${inletPoints.join(' ')} ${getX(series.length - 1)},${pad.top + plotH}`}
@@ -195,7 +202,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             />
           )}
 
-          {/* Inlet Line */}
           {inletPoints.length > 1 && (
             <polyline
               fill="none"
@@ -207,7 +213,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             />
           )}
 
-          {/* Outlet Line */}
           {outletPoints.length > 1 && (
             <polyline
               fill="none"
@@ -219,7 +224,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             />
           )}
 
-          {/* Hover Hairline & Active Markers */}
           {hoverIdx !== null && activePoint && (
             <g>
               <line
@@ -254,7 +258,6 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
             </g>
           )}
 
-          {/* Interactive Hover Hit Columns */}
           {series.map((_, idx) => {
             const colW = plotW / Math.max(series.length, 1);
             return (
@@ -273,24 +276,23 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
           })}
         </svg>
 
-        {/* Crosshair HUD Readout */}
         {activePoint && (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#B9E0F8] bg-[#F5FAFF] px-4 py-2 text-xs">
             <span className="font-mono tabular-nums text-[#103B66]">
-              {new Date(activePoint.timestamp).toLocaleString([], {
+              {new Date(activePoint.timestamp).toLocaleString('id-ID', {
+                day: '2-digit',
                 month: 'short',
-                day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit',
               })}
             </span>
             <div className="flex flex-wrap items-center gap-4 font-mono tabular-nums">
               <span className="text-[#176FAF] font-semibold">
-                Inlet: {activePoint.inlet !== null ? `${activePoint.inlet.toFixed(decimals)} ${unit}` : '--'}
+                Masuk: {activePoint.inlet !== null ? `${activePoint.inlet.toFixed(decimals)} ${unit}` : '--'}
               </span>
               {hasOutletSensor && (
                 <span className="text-[#458B6D] font-semibold">
-                  Outlet: {activePoint.outlet !== null ? `${activePoint.outlet.toFixed(decimals)} ${unit}` : '--'}
+                  Keluar: {activePoint.outlet !== null ? `${activePoint.outlet.toFixed(decimals)} ${unit}` : '--'}
                 </span>
               )}
             </div>

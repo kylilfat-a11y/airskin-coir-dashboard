@@ -1,240 +1,313 @@
-import React, { useMemo } from 'react';
-import { BarChart3, ShieldAlert } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Calendar, Download } from 'lucide-react';
 import type { SystemStatePayload } from '../types/airskin';
+import { InteractiveTrendChart } from '../components/InteractiveTrendChart';
 
 interface AirQualityAnalyticsPageProps {
   state: SystemStatePayload;
-  onToggleMode: (mode: 'hardware_standby' | 'demo_simulation') => void;
 }
 
-export const AirQualityAnalyticsPage: React.FC<AirQualityAnalyticsPageProps> = ({
-  state,
-  onToggleMode,
-}) => {
-  const { telemetry, config, mode } = state;
+export const AirQualityAnalyticsPage: React.FC<AirQualityAnalyticsPageProps> = ({ state }) => {
+  const { telemetry, simulationPreview, config, mode } = state;
+  const [dateFilter, setDateFilter] = useState<string>(() => new Date().toISOString().slice(0, 10));
+
+  // Sesuai instruksi: jika belum terhubung ke perangkat, tampilkan data simulasi dengan label jelas "DATA SIMULASI"
+  const isSimDataset = mode !== 'terhubung_esp32';
+  const activeDataset = mode === 'terhubung_esp32' ? telemetry : simulationPreview;
+  const effectiveOutletAvailable = mode === 'terhubung_esp32' ? config.hasOutletSensor : true;
+
   const unit = config.measurementUnit;
   const scale = unit === 'mg/m³' ? 0.001 : 1;
   const dec = unit === 'mg/m³' ? 3 : 1;
 
-  const stats = useMemo(() => {
-    const pm25 = telemetry.map((t) => t.pm25Inlet).filter((v): v is number => v !== null);
-    const pm10 = telemetry.map((t) => t.pm10Inlet).filter((v): v is number => v !== null);
+  // Hitung seri dengan simulasi outlet jika mode simulasi agar perbandingan & tren efisiensi terlihat jelas (dengan label DATA SIMULASI)
+  const displayRows = useMemo(() => {
+    return activeDataset.map((pt, idx) => {
+      const pm25In = pt.pm25Inlet;
+      const pm25Out =
+        pt.pm25Outlet !== null
+          ? pt.pm25Outlet
+          : isSimDataset && pm25In !== null
+            ? Number((pm25In * (0.46 + (idx % 5) * 0.015)).toFixed(1))
+            : null;
+      const pm10In = pt.pm10Inlet;
+      const pm10Out =
+        pt.pm10Outlet !== null
+          ? pt.pm10Outlet
+          : isSimDataset && pm10In !== null
+            ? Number((pm10In * (0.38 + (idx % 4) * 0.014)).toFixed(1))
+            : null;
 
-    const calcStats = (arr: number[]) => {
-      if (arr.length === 0) return null;
-      const sorted = [...arr].sort((a, b) => a - b);
-      const sum = arr.reduce((acc, v) => acc + v, 0);
-      const mean = sum / arr.length;
-      const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+      const eff25 =
+        pm25In !== null && pm25In > 0 && pm25Out !== null
+          ? ((pm25In - pm25Out) / pm25In) * 100
+          : null;
+
       return {
-        min: sorted[0] * scale,
-        mean: mean * scale,
-        p95: p95 * scale,
-        max: sorted[sorted.length - 1] * scale,
+        ...pt,
+        pm25Outlet: pm25Out,
+        pm10Outlet: pm10Out,
+        eff25,
       };
-    };
+    });
+  }, [activeDataset, isSimDataset]);
 
-    const whoPm25Limit = 15; // WHO 24h AQG (µg/m³)
-    const exceedances = pm25.filter((v) => v > whoPm25Limit).length;
-
-    return {
-      pm25: calcStats(pm25),
-      pm10: calcStats(pm10),
-      sampleCount: telemetry.length,
-      whoExceedancePct: pm25.length > 0 ? (exceedances / pm25.length) * 100 : null,
-    };
-  }, [telemetry, scale]);
-
-  const histogramBuckets = useMemo(() => {
-    const buckets = [
-      { label: '0–15 µg/m³ (WHO Good)', min: 0, max: 15, count: 0, color: '#72B89A' },
-      { label: '15–35 µg/m³ (Moderate)', min: 15, max: 35, count: 0, color: '#82C5EF' },
-      { label: '35–55 µg/m³ (Elevated)', min: 35, max: 55, count: 0, color: '#429EDB' },
-      { label: '> 55 µg/m³ (High Load)', min: 55, max: 9999, count: 0, color: '#D7B978' },
+  function handleDownloadCsv() {
+    const headers = [
+      'Waktu',
+      `PM2.5 Masuk (${unit})`,
+      `PM2.5 Keluar (${unit})`,
+      `PM10 Masuk (${unit})`,
+      `PM10 Keluar (${unit})`,
+      'Sumber',
     ];
-    for (const point of telemetry) {
-      if (point.pm25Inlet === null) continue;
-      const bucket = buckets.find((b) => (point.pm25Inlet as number) >= b.min && (point.pm25Inlet as number) < b.max);
-      if (bucket) bucket.count += 1;
-    }
-    return buckets;
-  }, [telemetry]);
+    const rows = displayRows.map((r) => [
+      r.timestamp,
+      r.pm25Inlet !== null ? (r.pm25Inlet * scale).toFixed(dec) : '',
+      r.pm25Outlet !== null ? (r.pm25Outlet * scale).toFixed(dec) : '',
+      r.pm10Inlet !== null ? (r.pm10Inlet * scale).toFixed(dec) : '',
+      r.pm10Outlet !== null ? (r.pm10Outlet * scale).toFixed(dec) : '',
+      isSimDataset ? 'DATA SIMULASI' : 'ESP32 AKTUAL',
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `airskin-coir-analisis-${dateFilter}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-  const maxBucket = Math.max(...histogramBuckets.map((b) => b.count), 1);
+  // Ringkasan rata-rata untuk grafik perbandingan masuk vs keluar
+  const avgStats = useMemo(() => {
+    const avg = (vals: Array<number | null>) => {
+      const valid = vals.filter((v): v is number => v !== null);
+      return valid.length > 0 ? (valid.reduce((a, b) => a + b, 0) / valid.length) * scale : null;
+    };
+    return {
+      pm25In: avg(displayRows.map((r) => r.pm25Inlet)),
+      pm25Out: avg(displayRows.map((r) => r.pm25Outlet)),
+      pm10In: avg(displayRows.map((r) => r.pm10Inlet)),
+      pm10Out: avg(displayRows.map((r) => r.pm10Outlet)),
+    };
+  }, [displayRows, scale]);
+
+  const maxBar = Math.max(avgStats.pm10In ?? 80, avgStats.pm25In ?? 50, 1);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66]">
-            Air Quality Analytics
+            Analisis dan Riwayat Kualitas Udara
           </h1>
           <p className="mt-1 text-sm text-[#103B66]/75">
-            Statistical particulate distribution, WHO 24-hour guideline benchmarking, and ambient load profiling.
+            Tren historis PM2.5 dan PM10, perbandingan udara masuk vs keluar, serta perubahan efisiensi filtrasi.
           </p>
         </div>
-        <span className="text-xs font-mono text-[#176FAF]">
-          {mode === 'demo_simulation'
-            ? 'Dataset: Demo Simulation'
-            : mode === 'live_esp32'
-              ? 'Dataset: Live ESP32 Buffer'
-              : 'Dataset: Awaiting Sensor Packets'}
-        </span>
-      </div>
 
-      {/* Distribution Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="airskin-card p-5 space-y-2">
-          <div className="text-xs font-semibold text-[#176FAF]">PM2.5 INLET MEAN</div>
-          <div className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
-            {stats.pm25 ? stats.pm25.mean.toFixed(dec) : '--'}
-            <span className="ml-1.5 text-xs font-normal text-[#103B66]/60">{unit}</span>
-          </div>
-          <div className="text-xs text-[#103B66]/65 font-mono tabular-nums">
-            {stats.pm25
-              ? `Min ${stats.pm25.min.toFixed(dec)} · P95 ${stats.pm25.p95.toFixed(dec)} · Max ${stats.pm25.max.toFixed(dec)}`
-              : 'Awaiting Test Data'}
-          </div>
-        </div>
-
-        <div className="airskin-card p-5 space-y-2">
-          <div className="text-xs font-semibold text-[#176FAF]">PM10 INLET MEAN</div>
-          <div className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
-            {stats.pm10 ? stats.pm10.mean.toFixed(dec) : '--'}
-            <span className="ml-1.5 text-xs font-normal text-[#103B66]/60">{unit}</span>
-          </div>
-          <div className="text-xs text-[#103B66]/65 font-mono tabular-nums">
-            {stats.pm10
-              ? `Min ${stats.pm10.min.toFixed(dec)} · P95 ${stats.pm10.p95.toFixed(dec)} · Max ${stats.pm10.max.toFixed(dec)}`
-              : 'Awaiting Test Data'}
-          </div>
-        </div>
-
-        <div className="airskin-card p-5 space-y-2">
-          <div className="text-xs font-semibold text-[#176FAF]">WHO 24h GUIDELINE EXCEEDANCE</div>
-          <div className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
-            {stats.whoExceedancePct !== null ? `${stats.whoExceedancePct.toFixed(0)}%` : '--'}
-          </div>
-          <div className="text-xs text-[#103B66]/65">
-            Share of inlet intervals above 15 µg/m³ WHO threshold ({stats.sampleCount} samples)
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-2 rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 text-xs text-[#103B66]">
+            <Calendar className="w-3.5 h-3.5 text-[#176FAF]" />
+            <span>Filter Tanggal:</span>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="font-mono text-xs focus:outline-none"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleDownloadCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#176FAF] px-4 py-2 text-xs font-medium text-white hover:bg-[#103B66] whitespace-nowrap"
+          >
+            <Download className="w-4 h-4" />
+            Unduh Laporan
+          </button>
         </div>
       </div>
 
-      {/* PM2.5 Ambient Load Histogram */}
-      <section className="airskin-card p-6 space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#176FAF]" />
-            <h2 className="font-[Poppins] text-base font-semibold text-[#103B66]">
-              Ambient PM2.5 Concentration Frequency Distribution
+      {/* Label Jelas DATA SIMULASI jika belum terhubung ke perangkat */}
+      {isSimDataset && (
+        <div className="rounded-xl border border-[#D7B978] bg-[#FDF8EC] px-4 py-3 text-xs text-[#103B66]">
+          <strong>DATA SIMULASI:</strong> Perangkat keras ESP32 belum terhubung. Seluruh grafik dan tabel pada halaman ini menampilkan data simulasi pratinjau agar fungsi analisis dapat ditinjau.
+        </div>
+      )}
+
+      {/* Tren PM2.5 dan PM10 Berdasarkan Waktu */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <section className="airskin-card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-[Poppins] text-sm font-semibold text-[#103B66]">
+              Tren PM2.5 Berdasarkan Waktu
             </h2>
+            {isSimDataset && (
+              <span className="font-mono text-[11px] font-semibold text-[#A68338]">DATA SIMULASI</span>
+            )}
           </div>
-          <span className="text-xs text-[#103B66]/65">Reference: WHO 2021 AQG (15 µg/m³ 24h)</span>
-        </div>
+          <InteractiveTrendChart
+            data={displayRows}
+            metric="pm25"
+            unit={unit}
+            hasOutletSensor={effectiveOutletAvailable}
+            isSimulation={isSimDataset}
+          />
+        </section>
 
-        {telemetry.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#82C5EF] bg-[#F5FAFF] px-6 py-12 text-center">
-            <p className="font-[Poppins] text-sm font-semibold text-[#103B66]">
-              No analytical telemetry records loaded yet
-            </p>
-            <p className="mt-1 text-xs text-[#103B66]/70">
-              Transmit real ESP32 data packets or enable Demo Simulation to inspect particulate distribution buckets.
-            </p>
-            <button
-              type="button"
-              onClick={() => onToggleMode('demo_simulation')}
-              className="mt-4 rounded-xl bg-[#176FAF] px-4 py-2 text-xs font-medium text-white hover:bg-[#103B66]"
-            >
-              Load Demo Simulation Dataset
-            </button>
+        <section className="airskin-card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-[Poppins] text-sm font-semibold text-[#103B66]">
+              Tren PM10 Berdasarkan Waktu
+            </h2>
+            {isSimDataset && (
+              <span className="font-mono text-[11px] font-semibold text-[#A68338]">DATA SIMULASI</span>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3.5">
-            {histogramBuckets.map((bucket) => {
-              const widthPct = Math.round((bucket.count / maxBucket) * 100);
-              return (
-                <div key={bucket.label} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-[#103B66]">{bucket.label}</span>
-                    <span className="font-mono tabular-nums text-[#103B66]/75">
-                      {bucket.count} intervals
-                    </span>
-                  </div>
-                  <div className="h-3.5 w-full rounded-full bg-[#EAF6FF] overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{ width: `${widthPct}%`, backgroundColor: bucket.color }}
-                    />
-                  </div>
+          <InteractiveTrendChart
+            data={displayRows}
+            metric="pm10"
+            unit={unit}
+            hasOutletSensor={effectiveOutletAvailable}
+            isSimulation={isSimDataset}
+          />
+        </section>
+      </div>
+
+      {/* Perbandingan Udara Masuk vs Keluar & Perubahan Efisiensi */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <section className="airskin-card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-[Poppins] text-sm font-semibold text-[#103B66]">
+              Perbandingan Rata-Rata Udara Masuk dan Keluar
+            </h2>
+            {isSimDataset && (
+              <span className="font-mono text-[11px] font-semibold text-[#A68338]">DATA SIMULASI</span>
+            )}
+          </div>
+
+          <div className="space-y-4 text-xs">
+            {[
+              { label: 'PM2.5 Udara Masuk', val: avgStats.pm25In, color: '#176FAF' },
+              { label: 'PM2.5 Udara Keluar', val: avgStats.pm25Out, color: '#72B89A' },
+              { label: 'PM10 Udara Masuk', val: avgStats.pm10In, color: '#429EDB' },
+              { label: 'PM10 Udara Keluar', val: avgStats.pm10Out, color: '#72B89A' },
+            ].map((item) => (
+              <div key={item.label} className="space-y-1">
+                <div className="flex justify-between">
+                  <span className="font-medium text-[#103B66]">{item.label}</span>
+                  <span className="font-mono tabular-nums font-semibold text-[#103B66]">
+                    {item.val !== null ? `${item.val.toFixed(dec)} ${unit}` : '--'}
+                  </span>
                 </div>
-              );
-            })}
+                <div className="h-3 rounded-full bg-[#EAF6FF] overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${item.val !== null ? Math.min(100, (item.val / maxBar) * 100) : 0}%`,
+                      backgroundColor: item.color,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </section>
+        </section>
 
-      {/* Scientific Data Table */}
+        <section className="airskin-card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-[Poppins] text-sm font-semibold text-[#103B66]">
+              Perubahan Efisiensi Filtrasi (%)
+            </h2>
+            {isSimDataset && (
+              <span className="font-mono text-[11px] font-semibold text-[#A68338]">DATA SIMULASI</span>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <svg viewBox="0 0 540 165" className="w-full min-w-[380px]">
+              {[0, 25, 50, 75, 100].map((val) => {
+                const y = 140 - (val / 100) * 115;
+                return (
+                  <g key={val}>
+                    <line x1="36" y1={y} x2="520" y2={y} stroke="#DCEEFB" strokeWidth="1" />
+                    <text x="30" y={y + 4} textAnchor="end" className="fill-[#103B66]/60 font-mono text-[10px]">
+                      {val}%
+                    </text>
+                  </g>
+                );
+              })}
+              {displayRows.slice(-20).length > 1 && (
+                <polyline
+                  fill="none"
+                  stroke="#72B89A"
+                  strokeWidth="2.4"
+                  strokeLinejoin="round"
+                  points={displayRows
+                    .slice(-20)
+                    .map((r, i, arr) => {
+                      const x = 42 + (i / (arr.length - 1)) * 470;
+                      const y = 140 - ((r.eff25 ?? 0) / 100) * 115;
+                      return `${x.toFixed(1)},${y.toFixed(1)}`;
+                    })
+                    .join(' ')}
+                />
+              )}
+            </svg>
+          </div>
+        </section>
+      </div>
+
+      {/* Tabel Riwayat Pengukuran */}
       <section className="airskin-card overflow-hidden">
         <div className="border-b border-[#DCEEFB] px-6 py-4 flex items-center justify-between gap-2">
           <h2 className="font-[Poppins] text-base font-semibold text-[#103B66]">
-            Recent Interval Measurements
+            Tabel Riwayat Pengukuran
           </h2>
-          <div className="flex items-center gap-1.5 text-xs text-[#103B66]/70">
-            <ShieldAlert className="w-3.5 h-3.5 text-[#429EDB]" />
-            <span>Raw & calibrated readings</span>
-          </div>
+          {isSimDataset && (
+            <span className="font-mono text-xs font-semibold text-[#A68338]">DATA SIMULASI</span>
+          )}
         </div>
-
-        {telemetry.length === 0 ? (
-          <div className="px-6 py-10 text-center text-xs text-[#103B66]/65">
-            Awaiting Test Data — No interval rows recorded yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#F5FAFF] text-[#103B66]/70 border-b border-[#DCEEFB]">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Timestamp</th>
-                  <th className="px-5 py-3 font-semibold">Panel</th>
-                  <th className="px-5 py-3 font-semibold text-right">PM2.5 Inlet</th>
-                  <th className="px-5 py-3 font-semibold text-right">PM2.5 Outlet</th>
-                  <th className="px-5 py-3 font-semibold text-right">PM10 Inlet</th>
-                  <th className="px-5 py-3 font-semibold text-right">Source</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#F5FAFF] text-[#103B66]/70 border-b border-[#DCEEFB]">
+              <tr>
+                <th className="px-5 py-3 font-semibold">Waktu</th>
+                <th className="px-5 py-3 font-semibold text-right">PM2.5 Masuk</th>
+                <th className="px-5 py-3 font-semibold text-right">PM2.5 Keluar</th>
+                <th className="px-5 py-3 font-semibold text-right">PM10 Masuk</th>
+                <th className="px-5 py-3 font-semibold text-right">PM10 Keluar</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#EAF6FF] font-mono tabular-nums">
+              {displayRows.slice(-12).reverse().map((row) => (
+                <tr key={row.id} className="hover:bg-[#F5FAFF]/70">
+                  <td className="px-5 py-3 text-[#103B66]">
+                    {new Date(row.timestamp).toLocaleString('id-ID', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td className="px-5 py-3 text-right text-[#176FAF]">
+                    {row.pm25Inlet !== null ? `${(row.pm25Inlet * scale).toFixed(dec)} ${unit}` : '--'}
+                  </td>
+                  <td className="px-5 py-3 text-right text-[#458B6D]">
+                    {row.pm25Outlet !== null ? `${(row.pm25Outlet * scale).toFixed(dec)} ${unit}` : '--'}
+                  </td>
+                  <td className="px-5 py-3 text-right text-[#176FAF]">
+                    {row.pm10Inlet !== null ? `${(row.pm10Inlet * scale).toFixed(dec)} ${unit}` : '--'}
+                  </td>
+                  <td className="px-5 py-3 text-right text-[#458B6D]">
+                    {row.pm10Outlet !== null ? `${(row.pm10Outlet * scale).toFixed(dec)} ${unit}` : '--'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EAF6FF] font-mono tabular-nums">
-                {telemetry.slice(-10).reverse().map((row) => (
-                  <tr key={row.id} className="hover:bg-[#F5FAFF]/70">
-                    <td className="px-5 py-3 text-[#103B66]">
-                      {new Date(row.timestamp).toLocaleString([], {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </td>
-                    <td className="px-5 py-3 text-[#176FAF] font-medium">{row.panelId}</td>
-                    <td className="px-5 py-3 text-right text-[#103B66]">
-                      {row.pm25Inlet !== null ? `${(row.pm25Inlet * scale).toFixed(dec)} ${unit}` : '--'}
-                    </td>
-                    <td className="px-5 py-3 text-right text-[#458B6D]">
-                      {config.hasOutletSensor && row.pm25Outlet !== null
-                        ? `${(row.pm25Outlet * scale).toFixed(dec)} ${unit}`
-                        : '--'}
-                    </td>
-                    <td className="px-5 py-3 text-right text-[#103B66]">
-                      {row.pm10Inlet !== null ? `${(row.pm10Inlet * scale).toFixed(dec)} ${unit}` : '--'}
-                    </td>
-                    <td className="px-5 py-3 text-right font-sans text-[#103B66]/70">
-                      {row.source === 'esp32' ? 'ESP32 Live' : 'Demo Simulation'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

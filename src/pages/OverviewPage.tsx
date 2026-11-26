@@ -1,23 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Activity,
   ArrowRight,
-  Building2,
+  Cpu,
   Droplets,
+  Fan,
   Filter,
   Gauge,
-  Leaf,
-  TrendingDown,
+  Radio,
   Wind,
 } from 'lucide-react';
 import type { NavSection, SystemStatePayload } from '../types/airskin';
-import { SparklineChart } from '../components/SparklineChart';
-import { FutureBuildingNetwork } from '../components/FutureBuildingNetwork';
+import { InteractiveTrendChart } from '../components/InteractiveTrendChart';
 
 interface OverviewPageProps {
   state: SystemStatePayload;
   onNavigate: (section: NavSection) => void;
-  onToggleMode: (mode: 'hardware_standby' | 'demo_simulation') => void;
+  onToggleMode: (mode: 'menunggu_koneksi' | 'data_simulasi') => void;
 }
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({
@@ -25,359 +24,382 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   onNavigate,
   onToggleMode,
 }) => {
-  const { telemetry, config, mode } = state;
+  const { telemetry, config, mode, sensors, notifications } = state;
+  const [chartMetric, setChartMetric] = useState<'pm25' | 'pm10'>('pm25');
+
   const unit = config.measurementUnit;
   const scale = unit === 'mg/m³' ? 0.001 : 1;
   const dec = unit === 'mg/m³' ? 3 : 1;
 
   const latest = telemetry.length > 0 ? telemetry[telemetry.length - 1] : null;
-  const prev = telemetry.length > 1 ? telemetry[telemetry.length - 2] : null;
+  const isSim = mode === 'data_simulasi';
 
-  const pm25InValues = telemetry
-    .map((t) => (t.pm25Inlet !== null ? t.pm25Inlet * scale : null))
-    .filter((v): v is number => v !== null);
-  const pm25OutValues = config.hasOutletSensor
-    ? telemetry
-        .map((t) => (t.pm25Outlet !== null ? t.pm25Outlet * scale : null))
-        .filter((v): v is number => v !== null)
-    : [];
-  const pm10InValues = telemetry
-    .map((t) => (t.pm10Inlet !== null ? t.pm10Inlet * scale : null))
-    .filter((v): v is number => v !== null);
-
-  const effValues = config.hasOutletSensor
-    ? telemetry
-        .filter((t) => t.pm25Inlet !== null && t.pm25Inlet > 0 && t.pm25Outlet !== null)
-        .map((t) => (((t.pm25Inlet as number) - (t.pm25Outlet as number)) / (t.pm25Inlet as number)) * 100)
-    : [];
-
-  const latestPm25In = latest?.pm25Inlet !== null && latest?.pm25Inlet !== undefined ? latest.pm25Inlet * scale : null;
-  const latestPm25Out =
+  const pm25In = latest?.pm25Inlet !== null && latest?.pm25Inlet !== undefined ? latest.pm25Inlet * scale : null;
+  const pm25Out =
     config.hasOutletSensor && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
       ? latest.pm25Outlet * scale
       : null;
-  const latestPm10 = latest?.pm10Inlet !== null && latest?.pm10Inlet !== undefined ? latest.pm10Inlet * scale : null;
-  const latestEff =
-    latestPm25In !== null && latestPm25In > 0 && latestPm25Out !== null
-      ? ((latestPm25In - latestPm25Out) / latestPm25In) * 100
+
+  const pm10In = latest?.pm10Inlet !== null && latest?.pm10Inlet !== undefined ? latest.pm10Inlet * scale : null;
+  const pm10Out =
+    config.hasOutletSensor && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
+      ? latest.pm10Outlet * scale
       : null;
 
-  const pm25InDelta =
-    latest && prev && latest.pm25Inlet !== null && prev.pm25Inlet !== null
-      ? (latest.pm25Inlet - prev.pm25Inlet) * scale
-      : null;
+  const effPm25 =
+    pm25In !== null && pm25In > 0 && pm25Out !== null ? ((pm25In - pm25Out) / pm25In) * 100 : null;
+  const effPm10 =
+    pm10In !== null && pm10In > 0 && pm10Out !== null ? ((pm10In - pm10Out) / pm10In) * 100 : null;
 
-  const pm10Delta =
-    latest && prev && latest.pm10Inlet !== null && prev.pm10Inlet !== null
-      ? (latest.pm10Inlet - prev.pm10Inlet) * scale
-      : null;
+  const espNode = sensors.find((s) => s.id === 'esp32');
+  const pmInletNode = sensors.find((s) => s.id === 'pm-inlet');
 
   return (
     <div className="space-y-6">
-      {/* Page Title & Mode Switch */}
+      {/* Tajuk Halaman Dashboard Monitoring */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66] text-balance">
-            Air Quality Overview
+          <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66]">
+            Ringkasan Kualitas Udara
           </h1>
           <p className="mt-1 text-sm text-[#103B66]/75">
-            Monitor your building-integrated filtration system in one place.
+            Pantau kondisi kualitas udara dan performa sistem filtrasi AIRSKIN COIR secara terintegrasi.
           </p>
         </div>
 
-        {/* Mode Selector (clearly distinguishes Standby vs Demo Simulation vs Live) */}
+        {/* Sakelar Sumber Data */}
         <div className="flex items-center gap-1 rounded-xl border border-[#B9E0F8] bg-white p-1 self-start sm:self-auto">
           <button
             type="button"
-            onClick={() => onToggleMode('hardware_standby')}
+            onClick={() => onToggleMode('menunggu_koneksi')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-              mode !== 'demo_simulation'
+              mode !== 'data_simulasi'
                 ? 'bg-[#176FAF] text-white'
                 : 'text-[#103B66]/75 hover:bg-[#EAF6FF]'
             }`}
           >
-            {mode === 'live_esp32' ? 'Live ESP32 Stream' : 'Hardware Standby'}
+            {mode === 'terhubung_esp32' ? 'Data Sensor Aktual' : 'Menunggu Sensor'}
           </button>
           <button
             type="button"
-            onClick={() => onToggleMode('demo_simulation')}
+            onClick={() => onToggleMode('data_simulasi')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-              mode === 'demo_simulation'
+              mode === 'data_simulasi'
                 ? 'bg-[#D7B978] text-[#103B66] font-semibold'
                 : 'text-[#103B66]/75 hover:bg-[#EAF6FF]'
             }`}
           >
-            Demo Simulation
+            DATA SIMULASI
           </button>
         </div>
       </div>
 
-      {/* Explicit Demo Notice when active */}
-      {mode === 'demo_simulation' && (
+      {/* Peringatan Tegas DATA SIMULASI */}
+      {isSim && (
         <div className="rounded-xl border border-[#D7B978] bg-[#FDF8EC] px-4 py-2.5 text-xs text-[#103B66] flex flex-wrap items-center justify-between gap-2">
           <span>
-            <strong>Demo Mode — Simulated Data:</strong> Values shown below are synthetic preview curves for demonstration and are not experimental measurements.
+            <strong>DATA SIMULASI:</strong> Perangkat ESP32 belum mengirimkan data aktual. Angka di bawah hanya simulasi pratinjau antarmuka, bukan hasil eksperimen nyata.
           </span>
           <button
             type="button"
-            onClick={() => onToggleMode('hardware_standby')}
-            className="text-xs font-semibold text-[#176FAF] underline underline-offset-2 hover:text-[#103B66] whitespace-nowrap"
+            onClick={() => onToggleMode('menunggu_koneksi')}
+            className="font-semibold text-[#176FAF] underline underline-offset-2 hover:text-[#103B66] whitespace-nowrap"
           >
-            Return to Hardware Standby
+            Kembali ke Menunggu Data Sensor
           </button>
         </div>
       )}
 
-      {/* Hero Section */}
-      <section className="airskin-card overflow-hidden bg-gradient-to-br from-[#FFFFFF] via-[#F4FAFF] to-[#E1F2FD]">
-        <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
-          <div className="lg:col-span-6 p-6 sm:p-8 flex flex-col justify-between gap-6">
-            <div className="space-y-3">
-              <div className="text-xs font-semibold tracking-wide text-[#176FAF]">
-                AIRSKIN COIR · Building-Integrated Bio-Filtration
-              </div>
-              <h2 className="font-[Poppins] text-2xl sm:text-3xl font-semibold leading-tight text-[#103B66] text-balance">
-                Your Building, Smarter and Cleaner.
+      {/* 4 Kartu Informasi Utama: PM2.5 & PM10 Udara Masuk / Keluar */}
+      <section aria-label="Konsentrasi Partikulat Utama" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <article className="airskin-card p-5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[#176FAF]">PM2.5 Udara Masuk ({unit})</span>
+            <Wind className="w-4 h-4 text-[#176FAF]" />
+          </div>
+          <div className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
+            {pm25In !== null ? pm25In.toFixed(dec) : '--'}
+          </div>
+          <div className="text-xs text-[#103B66]/65">
+            {pm25In !== null
+              ? isSim
+                ? 'DATA SIMULASI · Sebelum filtrasi'
+                : 'Pembacaan aktual sebelum filtrasi'
+              : 'Menunggu data sensor'}
+          </div>
+        </article>
+
+        <article className="airskin-card p-5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[#176FAF]">PM2.5 Udara Keluar ({unit})</span>
+            <Filter className="w-4 h-4 text-[#72B89A]" />
+          </div>
+          <div className="font-mono tabular-nums text-3xl font-semibold text-[#458B6D]">
+            {pm25Out !== null ? pm25Out.toFixed(dec) : '--'}
+          </div>
+          <div className="text-xs text-[#103B66]/65">
+            {pm25Out !== null
+              ? isSim
+                ? 'DATA SIMULASI · Sesudah filtrasi'
+                : 'Pembacaan aktual sesudah filtrasi'
+              : !config.hasOutletSensor
+                ? 'Menunggu data sensor (kanal keluar belum aktif)'
+                : 'Menunggu data sensor'}
+          </div>
+        </article>
+
+        <article className="airskin-card p-5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[#176FAF]">PM10 Udara Masuk ({unit})</span>
+            <Droplets className="w-4 h-4 text-[#429EDB]" />
+          </div>
+          <div className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
+            {pm10In !== null ? pm10In.toFixed(dec) : '--'}
+          </div>
+          <div className="text-xs text-[#103B66]/65">
+            {pm10In !== null
+              ? isSim
+                ? 'DATA SIMULASI · Partikulat kasar masuk'
+                : 'Pembacaan aktual partikulat kasar'
+              : 'Menunggu data sensor'}
+          </div>
+        </article>
+
+        <article className="airskin-card p-5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[#176FAF]">PM10 Udara Keluar ({unit})</span>
+            <Filter className="w-4 h-4 text-[#72B89A]" />
+          </div>
+          <div className="font-mono tabular-nums text-3xl font-semibold text-[#458B6D]">
+            {pm10Out !== null ? pm10Out.toFixed(dec) : '--'}
+          </div>
+          <div className="text-xs text-[#103B66]/65">
+            {pm10Out !== null
+              ? isSim
+                ? 'DATA SIMULASI · Sesudah filtrasi'
+                : 'Pembacaan aktual sesudah filtrasi'
+              : !config.hasOutletSensor
+                ? 'Menunggu data sensor (kanal keluar belum aktif)'
+                : 'Menunggu data sensor'}
+          </div>
+        </article>
+      </section>
+
+      {/* 4 Kartu Informasi Tambahan: Efisiensi PM2.5, Efisiensi PM10, Status ESP32, Status Sensor */}
+      <section aria-label="Efisiensi dan Status Perangkat" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <article className="airskin-surface-sky p-4 space-y-1.5">
+          <div className="flex items-center justify-between gap-2 text-xs font-semibold text-[#176FAF]">
+            <span>Efisiensi Filtrasi PM2.5 (%)</span>
+            <Gauge className="w-4 h-4" />
+          </div>
+          <div className="font-mono tabular-nums text-2xl font-semibold text-[#103B66]">
+            {effPm25 !== null ? `${effPm25.toFixed(1)}%` : '--'}
+          </div>
+          <div className="text-[11px] text-[#103B66]/70">
+            {effPm25 !== null
+              ? isSim
+                ? 'DATA SIMULASI · Dihitung dari masuk & keluar'
+                : 'Dihitung dari sensor masuk & keluar'
+              : 'Menunggu data sensor masuk & keluar'}
+          </div>
+        </article>
+
+        <article className="airskin-surface-sky p-4 space-y-1.5">
+          <div className="flex items-center justify-between gap-2 text-xs font-semibold text-[#176FAF]">
+            <span>Efisiensi Filtrasi PM10 (%)</span>
+            <Gauge className="w-4 h-4" />
+          </div>
+          <div className="font-mono tabular-nums text-2xl font-semibold text-[#103B66]">
+            {effPm10 !== null ? `${effPm10.toFixed(1)}%` : '--'}
+          </div>
+          <div className="text-[11px] text-[#103B66]/70">
+            {effPm10 !== null
+              ? isSim
+                ? 'DATA SIMULASI · Dihitung dari masuk & keluar'
+                : 'Dihitung dari sensor masuk & keluar'
+              : 'Menunggu data sensor masuk & keluar'}
+          </div>
+        </article>
+
+        <article className="airskin-surface-sky p-4 space-y-1.5">
+          <div className="flex items-center justify-between gap-2 text-xs font-semibold text-[#176FAF]">
+            <span>Status ESP32</span>
+            <Cpu className="w-4 h-4" />
+          </div>
+          <div
+            className={`font-[Poppins] text-lg font-semibold ${
+              espNode?.status === 'Terhubung' ? 'text-[#458B6D]' : 'text-[#103B66]'
+            }`}
+          >
+            {espNode?.status || 'Menunggu koneksi'}
+          </div>
+          <div className="font-mono text-[11px] text-[#103B66]/70 truncate">
+            {config.esp32DeviceId}
+          </div>
+        </article>
+
+        <article className="airskin-surface-sky p-4 space-y-1.5">
+          <div className="flex items-center justify-between gap-2 text-xs font-semibold text-[#176FAF]">
+            <span>Status Sensor</span>
+            <Radio className="w-4 h-4" />
+          </div>
+          <div
+            className={`font-[Poppins] text-lg font-semibold ${
+              pmInletNode?.status === 'Terhubung' ? 'text-[#458B6D]' : 'text-[#103B66]'
+            }`}
+          >
+            {pmInletNode?.status || 'Menunggu koneksi'}
+          </div>
+          <div className="text-[11px] text-[#103B66]/70 truncate">
+            {config.hasOutletSensor ? 'Kanal Masuk & Keluar Aktif' : 'Sensor Masuk Tunggal (CH1)'}
+          </div>
+        </article>
+      </section>
+
+      {/* Grafik Perubahan PM2.5 & PM10 + Skema Gedung & Aliran Udara */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
+        {/* Grafik Perubahan PM2.5 dan PM10 */}
+        <section className="xl:col-span-7 airskin-card p-6 flex flex-col justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-[Poppins] text-base font-semibold text-[#103B66]">
+                Grafik Perubahan PM2.5 dan PM10
               </h2>
-              <p className="text-sm leading-relaxed text-[#103B66]/80 max-w-xl">
-                Monitor particulate matter and evaluate the performance of your AIRSKIN COIR filtration modules.
+              <p className="text-xs text-[#103B66]/70">
+                Pemantauan konsentrasi partikulat berdasarkan waktu pada panel {config.activePanelId}.
               </p>
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1 rounded-xl border border-[#B9E0F8] bg-[#F5FAFF] p-1">
               <button
                 type="button"
-                onClick={() => onNavigate('live')}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#176FAF] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#103B66] transition-colors whitespace-nowrap"
+                onClick={() => setChartMetric('pm25')}
+                className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                  chartMetric === 'pm25' ? 'bg-[#176FAF] text-white' : 'text-[#103B66]/75'
+                }`}
               >
-                <Activity className="w-4 h-4 shrink-0" />
-                View Live Monitoring
+                PM2.5
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate('panels')}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#82C5EF] bg-white px-5 py-2.5 text-sm font-medium text-[#103B66] hover:bg-[#EAF6FF] transition-colors whitespace-nowrap"
+                onClick={() => setChartMetric('pm10')}
+                className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                  chartMetric === 'pm10' ? 'bg-[#176FAF] text-white' : 'text-[#103B66]/75'
+                }`}
               >
-                <Building2 className="w-4 h-4 shrink-0 text-[#429EDB]" />
-                Explore Facade Panels
-                <ArrowRight className="w-4 h-4 shrink-0 text-[#429EDB]" />
+                PM10
               </button>
             </div>
           </div>
 
-          <div className="lg:col-span-6 relative min-h-[240px] lg:min-h-[300px] bg-[#103B66]">
+          <InteractiveTrendChart
+            data={telemetry}
+            metric={chartMetric}
+            unit={unit}
+            hasOutletSensor={config.hasOutletSensor}
+            isSimulation={isSim}
+            onRequestDemo={() => onToggleMode('data_simulasi')}
+          />
+        </section>
+
+        {/* Ilustrasi Gedung + Indikator Aliran Udara + Ringkasan Kondisi Perangkat */}
+        <section className="xl:col-span-5 airskin-card overflow-hidden flex flex-col">
+          <div className="border-b border-[#DCEEFB] px-5 py-3.5 bg-[#F5FAFF] flex items-center justify-between gap-2">
+            <span className="font-[Poppins] text-sm font-semibold text-[#103B66]">
+              Fasad Bangunan & Aliran Udara
+            </span>
+            <button
+              type="button"
+              onClick={() => onNavigate('panel')}
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#176FAF] hover:underline"
+            >
+              Detail Panel <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="relative h-52 bg-[#EAF6FF]">
             <img
-              src="/src/assets/images/hero_facade_building_1795694951234.jpg"
-              alt="Modern blue-glass building integrated with modular AIRSKIN COIR coconut fiber air filtration facade panels"
+              src="/src/assets/images/facade_3d_isometric_1795694950809.jpg"
+              alt="Ilustrasi gedung dengan panel AIRSKIN COIR yang terpasang di fasad"
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#103B66]/70 via-transparent to-transparent lg:bg-gradient-to-r lg:from-[#E1F2FD]/30 lg:via-transparent lg:to-transparent" />
-            <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#103B66]/80 backdrop-blur-sm px-4 py-2.5 text-xs text-white">
-              <span>Active Bay: {config.activePanelId}</span>
-              <span className="font-mono text-[#B9E0F8]">
-                {mode === 'live_esp32'
-                  ? 'Live ESP32 Telemetry'
-                  : mode === 'demo_simulation'
-                    ? 'Demo Simulation'
-                    : 'Awaiting Prototype Sensor Feed'}
-              </span>
-            </div>
           </div>
-        </div>
-      </section>
 
-      {/* 4 KPI Metric Cards */}
-      <section aria-label="Primary Particulate Matter Metrics" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* KPI 1: PM2.5 INLET */}
-        <article className="airskin-card p-5 flex flex-col justify-between gap-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold tracking-wide text-[#176FAF]">
-                PM2.5 INLET
+          <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
+            {/* Indikator Aliran Udara Masuk dan Keluar */}
+            <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-3.5 space-y-2.5">
+              <div className="text-xs font-semibold text-[#103B66]">
+                Indikator Aliran Udara Masuk & Keluar
               </div>
-              <p className="mt-0.5 text-xs text-[#103B66]/65">
-                Particulate concentration before filtration.
-              </p>
-            </div>
-            <div className="rounded-xl bg-[#EAF6FF] p-2.5 text-[#176FAF] shrink-0">
-              <Wind className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="flex items-baseline justify-between gap-2">
-            <div>
-              <span className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
-                {latestPm25In !== null ? latestPm25In.toFixed(dec) : '--'}
-              </span>
-              <span className="ml-1.5 font-mono text-xs text-[#103B66]/60">{unit}</span>
-            </div>
-            {pm25InDelta !== null ? (
-              <span className="font-mono tabular-nums text-xs text-[#176FAF]">
-                {pm25InDelta >= 0 ? `+${pm25InDelta.toFixed(dec)}` : pm25InDelta.toFixed(dec)}
-              </span>
-            ) : (
-              <span className="text-[11px] text-[#103B66]/55">Awaiting Test Data</span>
-            )}
-          </div>
-
-          <SparklineChart values={pm25InValues.slice(-16)} strokeColor="#176FAF" />
-        </article>
-
-        {/* KPI 2: PM2.5 OUTLET */}
-        <article className="airskin-card p-5 flex flex-col justify-between gap-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold tracking-wide text-[#176FAF]">
-                PM2.5 OUTLET
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-lg bg-white border border-[#DCEEFB] p-2.5">
+                  <div className="text-[11px] text-[#103B66]/65">Udara Masuk (Inlet)</div>
+                  <div className="mt-0.5 font-semibold text-[#176FAF] flex items-center gap-1.5">
+                    <Wind className="w-3.5 h-3.5" />
+                    {mode === 'terhubung_esp32' ? 'Aliran Aktif' : isSim ? 'Simulasi Aktif' : 'Siaga'}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-white border border-[#DCEEFB] p-2.5">
+                  <div className="text-[11px] text-[#103B66]/65">Udara Keluar (Outlet)</div>
+                  <div className="mt-0.5 font-semibold text-[#458B6D] flex items-center gap-1.5">
+                    <Fan className="w-3.5 h-3.5" />
+                    {mode === 'terhubung_esp32'
+                      ? 'Kipas DC Aktif'
+                      : isSim
+                        ? 'Simulasi Terfiltrasi'
+                        : 'Menunggu Kipas DC'}
+                  </div>
+                </div>
               </div>
-              <p className="mt-0.5 text-xs text-[#103B66]/65">
-                Particulate concentration after filtration.
-              </p>
             </div>
-            <div className="rounded-xl bg-[#EAF6FF] p-2.5 text-[#72B89A] shrink-0">
-              <Filter className="w-4 h-4" />
-            </div>
-          </div>
 
-          <div className="flex items-baseline justify-between gap-2">
-            <div>
-              <span className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
-                {latestPm25Out !== null ? latestPm25Out.toFixed(dec) : '--'}
-              </span>
-              <span className="ml-1.5 font-mono text-xs text-[#103B66]/60">{unit}</span>
-            </div>
-            <span className="text-[11px] text-[#103B66]/55">
-              {!config.hasOutletSensor
-                ? 'Outlet sensor not installed'
-                : latestPm25Out === null
-                  ? 'Awaiting Test Data'
-                  : 'Filtered stream'}
-            </span>
-          </div>
-
-          <SparklineChart
-            values={pm25OutValues.slice(-16)}
-            strokeColor="#72B89A"
-            fillColor="rgba(114, 184, 154, 0.16)"
-          />
-        </article>
-
-        {/* KPI 3: PM10 CONCENTRATION */}
-        <article className="airskin-card p-5 flex flex-col justify-between gap-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold tracking-wide text-[#176FAF]">
-                PM10 CONCENTRATION
+            {/* Ringkasan Kondisi Perangkat & Notifikasi Terbaru */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-[#103B66]">Ringkasan Kondisi Perangkat</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('pengaturan')}
+                  className="text-[#176FAF] font-medium hover:underline"
+                >
+                  Atur Perangkat
+                </button>
               </div>
-              <p className="mt-0.5 text-xs text-[#103B66]/65">
-                Coarse particulate monitoring.
-              </p>
-            </div>
-            <div className="rounded-xl bg-[#EAF6FF] p-2.5 text-[#429EDB] shrink-0">
-              <Droplets className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="flex items-baseline justify-between gap-2">
-            <div>
-              <span className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
-                {latestPm10 !== null ? latestPm10.toFixed(dec) : '--'}
-              </span>
-              <span className="ml-1.5 font-mono text-xs text-[#103B66]/60">{unit}</span>
-            </div>
-            {pm10Delta !== null ? (
-              <span className="font-mono tabular-nums text-xs text-[#429EDB]">
-                {pm10Delta >= 0 ? `+${pm10Delta.toFixed(dec)}` : pm10Delta.toFixed(dec)}
-              </span>
-            ) : (
-              <span className="text-[11px] text-[#103B66]/55">Awaiting Test Data</span>
-            )}
-          </div>
-
-          <SparklineChart values={pm10InValues.slice(-16)} strokeColor="#429EDB" />
-        </article>
-
-        {/* KPI 4: FILTRATION EFFICIENCY */}
-        <article className="airskin-card p-5 flex flex-col justify-between gap-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold tracking-wide text-[#176FAF]">
-                FILTRATION EFFICIENCY
+              <div className="space-y-1.5 text-xs">
+                {sensors.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between py-1 border-b border-[#EAF6FF] last:border-b-0"
+                  >
+                    <span className="text-[#103B66]/85">{s.name}</span>
+                    <span
+                      className={`font-semibold ${
+                        s.status === 'Terhubung'
+                          ? 'text-[#458B6D]'
+                          : s.status === 'Terputus'
+                            ? 'text-[#C2410C]'
+                            : 'text-[#176FAF]'
+                      }`}
+                    >
+                      {s.status}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <p className="mt-0.5 text-xs text-[#103B66]/65">
-                Calculated from inlet and outlet measurements.
-              </p>
+              {notifications[0] && (
+                <div className="pt-1 text-[11px] text-[#103B66]/70 flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-[#429EDB] shrink-0" />
+                  <span className="truncate">{notifications[0].message}</span>
+                </div>
+              )}
             </div>
-            <div className="rounded-xl bg-[#EAF6FF] p-2.5 text-[#72B89A] shrink-0">
-              <Gauge className="w-4 h-4" />
-            </div>
           </div>
+        </section>
+      </div>
 
-          <div className="flex items-baseline justify-between gap-2">
-            <div>
-              <span className="font-mono tabular-nums text-3xl font-semibold text-[#103B66]">
-                {latestEff !== null ? latestEff.toFixed(1) : '--'}
-              </span>
-              <span className="ml-1.5 font-mono text-xs text-[#103B66]/60">%</span>
-            </div>
-            {latestEff !== null ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-[#458B6D]">
-                <TrendingDown className="w-3.5 h-3.5" />
-                Active η
-              </span>
-            ) : (
-              <span className="text-[11px] text-[#103B66]/55">Requires dual sensors</span>
-            )}
-          </div>
-
-          <SparklineChart
-            values={effValues.slice(-16)}
-            strokeColor="#72B89A"
-            fillColor="rgba(114, 184, 154, 0.16)"
-          />
-        </article>
-      </section>
-
-      {/* Three Key Values: FILTER · MONITOR · OPTIMIZE */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4" aria-label="Core Platform Pillars">
-        <div className="airskin-surface-sky p-5">
-          <div className="flex items-center gap-2.5 text-[#176FAF] font-[Poppins] text-sm font-semibold">
-            <Leaf className="w-4 h-4 text-[#72B89A]" />
-            <span>01. FILTER</span>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-[#103B66]/80">
-            Coconut-based particulate filtration combining a G3 nonwoven prefilter and compressed natural coir media.
-          </p>
-        </div>
-
-        <div className="airskin-surface-sky p-5">
-          <div className="flex items-center gap-2.5 text-[#176FAF] font-[Poppins] text-sm font-semibold">
-            <Activity className="w-4 h-4 text-[#429EDB]" />
-            <span>02. MONITOR</span>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-[#103B66]/80">
-            Real-time PM2.5 and PM10 monitoring via ESP32 optical particulate sensing and synchronized telemetry logs.
-          </p>
-        </div>
-
-        <div className="airskin-surface-sky p-5">
-          <div className="flex items-center gap-2.5 text-[#176FAF] font-[Poppins] text-sm font-semibold">
-            <Building2 className="w-4 h-4 text-[#176FAF]" />
-            <span>03. OPTIMIZE</span>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-[#103B66]/80">
-            Data-driven evaluation of removal efficiency and maintenance cadence toward connected multi-panel smart buildings.
-          </p>
-        </div>
-      </section>
-
-      {/* Future Smart Building Network Preview */}
-      <FutureBuildingNetwork />
-
-      {/* Brand Statement Footer */}
-      <footer className="pt-2 pb-4 text-center text-xs text-[#103B66]/70">
-        AIRSKIN COIR — Turning Sustainable Materials into Smart Building Air Solutions.
+      {/* Tagline Penutup */}
+      <footer className="pt-1 pb-3 text-center text-xs text-[#103B66]/70">
+        AIRSKIN COIR — Pantau Udara, Optimalkan Filtrasi, Bangun Lingkungan Lebih Baik.
       </footer>
     </div>
   );

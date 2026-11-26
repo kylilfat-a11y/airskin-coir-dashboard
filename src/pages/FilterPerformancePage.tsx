@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calculator, FlaskConical, Gauge, Plus, Trash2, Wind, Zap } from 'lucide-react';
+import { Calculator, FlaskConical, Info, Plus, Trash2 } from 'lucide-react';
 import type { FilterConfigKey, FilterExperimentTrial, SystemStatePayload } from '../types/airskin';
 
 interface FilterPerformancePageProps {
@@ -10,9 +10,6 @@ interface FilterPerformancePageProps {
     pm25Outlet: number;
     pm10Inlet: number;
     pm10Outlet: number;
-    pressureDropPa: number | null;
-    airflowM3h: number | null;
-    fanPowerW: number | null;
     notes: string;
   }) => Promise<void>;
   onLoadSampleTrials: () => Promise<void>;
@@ -20,10 +17,10 @@ interface FilterPerformancePageProps {
 }
 
 const CONFIG_DEFINITIONS: Array<{ key: FilterConfigKey; label: string }> = [
-  { key: 'A', label: 'A. Nonwoven only' },
-  { key: 'B', label: 'B. Coconut coir only' },
-  { key: 'C', label: 'C. Nonwoven + coconut coir' },
-  { key: 'D', label: 'D. No-filter control' },
+  { key: 'A', label: 'A. Lapisan Nonwoven Saja' },
+  { key: 'B', label: 'B. Media Serabut Kelapa Saja' },
+  { key: 'C', label: 'C. Nonwoven + Serabut Kelapa' },
+  { key: 'D', label: 'D. Kontrol Tanpa Filter' },
 ];
 
 export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
@@ -32,7 +29,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
   onLoadSampleTrials,
   onClearTrials,
 }) => {
-  const { telemetry, config, experiments } = state;
+  const { telemetry, config, experiments, mode } = state;
   const [calcCin, setCalcCin] = useState('52.0');
   const [calcCout, setCalcCout] = useState('21.8');
 
@@ -42,29 +39,29 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
   const [pm25Out, setPm25Out] = useState('22.1');
   const [pm10In, setPm10In] = useState('80.0');
   const [pm10Out, setPm10Out] = useState('25.2');
-  const [pressurePa, setPressurePa] = useState('');
-  const [airflowM3h, setAirflowM3h] = useState('');
-  const [fanPowerW, setFanPowerW] = useState('4.8');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
   const latest = telemetry.length > 0 ? telemetry[telemetry.length - 1] : null;
-  const pm25EffLive =
+  const validPairPm25 =
     latest &&
     config.hasOutletSensor &&
     latest.pm25Inlet !== null &&
     latest.pm25Inlet > 0 &&
-    latest.pm25Outlet !== null
-      ? (((latest.pm25Inlet - latest.pm25Outlet) / latest.pm25Inlet) * 100).toFixed(1)
-      : null;
-  const pm10EffLive =
+    latest.pm25Outlet !== null;
+  const validPairPm10 =
     latest &&
     config.hasOutletSensor &&
     latest.pm10Inlet !== null &&
     latest.pm10Inlet > 0 &&
-    latest.pm10Outlet !== null
-      ? (((latest.pm10Inlet - latest.pm10Outlet) / latest.pm10Inlet) * 100).toFixed(1)
-      : null;
+    latest.pm10Outlet !== null;
+
+  const pm25EffLive = validPairPm25
+    ? (((latest!.pm25Inlet! - latest!.pm25Outlet!) / latest!.pm25Inlet!) * 100).toFixed(1)
+    : null;
+  const pm10EffLive = validPairPm10
+    ? (((latest!.pm10Inlet! - latest!.pm10Outlet!) / latest!.pm10Inlet!) * 100).toFixed(1)
+    : null;
 
   const cinNum = Number(calcCin);
   const coutNum = Number(calcCout);
@@ -73,7 +70,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
       ? (((cinNum - coutNum) / cinNum) * 100).toFixed(2)
       : '--';
 
-  const hasSampleDemo = experiments.some((e) => e.isSampleDemo);
+  const hasSimulationTrial = experiments.some((e) => e.isSimulation);
 
   async function handleTrialSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,9 +82,6 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
         pm25Outlet: Number(pm25Out),
         pm10Inlet: Number(pm10In),
         pm10Outlet: Number(pm10Out),
-        pressureDropPa: pressurePa.trim() ? Number(pressurePa) : null,
-        airflowM3h: airflowM3h.trim() ? Number(airflowM3h) : null,
-        fanPowerW: fanPowerW.trim() ? Number(fanPowerW) : null,
         notes,
       });
       setFormOpen(false);
@@ -98,28 +92,26 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
 
   function renderComparisonBars(
     title: string,
-    unitLabel: string,
-    getValue: (t: FilterExperimentTrial) => number | null,
-    maxScale: number,
+    getValue: (t: FilterExperimentTrial) => number,
     barColor: string,
   ) {
     return (
       <div className="rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-4 space-y-3">
         <div className="flex items-center justify-between text-xs font-semibold text-[#103B66]">
           <span>{title}</span>
-          <span className="font-mono text-[#176FAF]">{unitLabel}</span>
+          <span className="font-mono text-[#176FAF]">%</span>
         </div>
         <div className="space-y-2.5">
           {CONFIG_DEFINITIONS.map((def) => {
             const match = experiments.find((e) => e.configKey === def.key);
             const val = match ? getValue(match) : null;
-            const pct = val !== null ? Math.min(100, Math.max(0, (val / maxScale) * 100)) : 0;
+            const pct = val !== null ? Math.min(100, Math.max(0, val)) : 0;
             return (
               <div key={def.key} className="space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-[#103B66]/85 font-medium truncate pr-2">{def.label}</span>
                   <span className="font-mono tabular-nums font-semibold text-[#103B66] shrink-0">
-                    {val !== null ? `${val.toFixed(1)} ${unitLabel}` : '--'}
+                    {val !== null ? `${val.toFixed(1)}%` : '--'}
                   </span>
                 </div>
                 <div className="h-2.5 w-full rounded-full bg-white border border-[#DCEEFB] overflow-hidden">
@@ -138,182 +130,144 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66]">
-            Filtration Performance
-          </h1>
-          <p className="mt-1 text-sm text-[#103B66]/75">
-            Empirical removal efficiency, aerodynamic resistance, and controlled media configuration benchmarks.
-          </p>
-        </div>
+      <div>
+        <h1 className="font-[Poppins] text-2xl sm:text-3xl font-semibold tracking-tight text-[#103B66]">
+          Analisis Kinerja Filtrasi
+        </h1>
+        <p className="mt-1 text-sm text-[#103B66]/75">
+          Perbandingan konsentrasi partikulat sebelum dan sesudah filtrasi, nilai efisiensi, serta riwayat pengujian media.
+        </p>
       </div>
 
-      {/* Mandatory Scientific Integrity Note */}
-      <div className="rounded-xl border border-[#82C5EF] bg-[#F5FAFF] px-4 py-3 text-xs text-[#103B66]">
-        Performance values are based on controlled prototype measurements. No unverified performance claims are displayed.
+      {/* Keterangan Validitas Rumus Efisiensi */}
+      <div className="rounded-xl border border-[#82C5EF] bg-[#F5FAFF] px-4 py-3 text-xs text-[#103B66] flex items-start gap-2.5">
+        <Info className="w-4 h-4 text-[#176FAF] shrink-0 mt-0.5" />
+        <span>
+          <strong>Prinsip Perhitungan Ilmiah:</strong> Efisiensi filtrasi hanya dapat dihitung apabila data pengukuran udara masuk dan udara keluar tersedia secara bersamaan serta valid. Tidak ada klaim efisiensi yang ditampilkan tanpa data terukur.
+        </span>
       </div>
 
-      {/* Performance Metrics Grid */}
+      {/* Nilai Efisiensi Filtrasi Terkini */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="airskin-card p-5 space-y-1.5">
-          <div className="text-xs font-semibold text-[#176FAF]">PM2.5 REMOVAL EFFICIENCY</div>
-          <div className="font-mono tabular-nums text-2xl font-semibold text-[#458B6D]">
-            {pm25EffLive !== null ? `${pm25EffLive} %` : '--'}
+        <div className="airskin-card p-5 space-y-1">
+          <div className="text-xs font-semibold text-[#176FAF]">Efisiensi Filtrasi PM2.5</div>
+          <div className="font-mono tabular-nums text-3xl font-semibold text-[#458B6D]">
+            {pm25EffLive !== null ? `${pm25EffLive}%` : '--'}
           </div>
           <div className="text-[11px] text-[#103B66]/65">
-            {config.hasOutletSensor ? 'From active inlet/outlet telemetry' : 'Requires outlet PM sensor'}
+            {pm25EffLive !== null
+              ? mode === 'data_simulasi'
+                ? 'DATA SIMULASI · Pasangan masuk/keluar'
+                : 'Dihitung dari sensor aktual'
+              : 'Menunggu data masuk & keluar yang valid'}
           </div>
         </div>
 
-        <div className="airskin-card p-5 space-y-1.5">
-          <div className="text-xs font-semibold text-[#176FAF]">PM10 REMOVAL EFFICIENCY</div>
-          <div className="font-mono tabular-nums text-2xl font-semibold text-[#458B6D]">
-            {pm10EffLive !== null ? `${pm10EffLive} %` : '--'}
+        <div className="airskin-card p-5 space-y-1">
+          <div className="text-xs font-semibold text-[#176FAF]">Efisiensi Filtrasi PM10</div>
+          <div className="font-mono tabular-nums text-3xl font-semibold text-[#458B6D]">
+            {pm10EffLive !== null ? `${pm10EffLive}%` : '--'}
           </div>
           <div className="text-[11px] text-[#103B66]/65">
-            {config.hasOutletSensor ? 'From active inlet/outlet telemetry' : 'Requires outlet PM sensor'}
+            {pm10EffLive !== null
+              ? mode === 'data_simulasi'
+                ? 'DATA SIMULASI · Pasangan masuk/keluar'
+                : 'Dihitung dari sensor aktual'
+              : 'Menunggu data masuk & keluar yang valid'}
           </div>
         </div>
 
-        <div className="airskin-card p-5 space-y-1.5">
-          <div className="text-xs font-semibold text-[#176FAF]">INLET / OUTLET CONCENTRATION</div>
-          <div className="font-mono tabular-nums text-lg font-semibold text-[#103B66]">
+        <div className="airskin-card p-5 space-y-1">
+          <div className="text-xs font-semibold text-[#176FAF]">PM2.5 Masuk / Keluar</div>
+          <div className="font-mono tabular-nums text-xl font-semibold text-[#103B66]">
             {latest?.pm25Inlet !== null && latest?.pm25Inlet !== undefined
-              ? `${latest.pm25Inlet.toFixed(1)} / ${
-                  config.hasOutletSensor && latest.pm25Outlet !== null
-                    ? latest.pm25Outlet.toFixed(1)
-                    : '--'
-                }`
-              : '-- / --'}
+              ? latest.pm25Inlet.toFixed(1)
+              : '--'}{' '}
+            /{' '}
+            {config.hasOutletSensor && latest?.pm25Outlet !== null && latest?.pm25Outlet !== undefined
+              ? latest.pm25Outlet.toFixed(1)
+              : '--'}
             <span className="ml-1 text-xs font-normal text-[#103B66]/60">µg/m³</span>
           </div>
-          <div className="text-[11px] text-[#103B66]/65">PM2.5 active sensor pair</div>
+          <div className="text-[11px] text-[#103B66]/65">Perbandingan langsung PM2.5</div>
         </div>
 
-        <div className="airskin-card p-5 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#176FAF]">
-            <Zap className="w-3.5 h-3.5 text-[#D7B978]" />
-            <span>FAN POWER CONSUMPTION</span>
-          </div>
-          <div className="font-mono tabular-nums text-2xl font-semibold text-[#103B66]">
-            {latest?.fanPowerW !== null && latest?.fanPowerW !== undefined
-              ? `${latest.fanPowerW.toFixed(1)} W`
+        <div className="airskin-card p-5 space-y-1">
+          <div className="text-xs font-semibold text-[#176FAF]">PM10 Masuk / Keluar</div>
+          <div className="font-mono tabular-nums text-xl font-semibold text-[#103B66]">
+            {latest?.pm10Inlet !== null && latest?.pm10Inlet !== undefined
+              ? latest.pm10Inlet.toFixed(1)
+              : '--'}{' '}
+            /{' '}
+            {config.hasOutletSensor && latest?.pm10Outlet !== null && latest?.pm10Outlet !== undefined
+              ? latest.pm10Outlet.toFixed(1)
               : '--'}
+            <span className="ml-1 text-xs font-normal text-[#103B66]/60">µg/m³</span>
           </div>
-          <div className="text-[11px] text-[#103B66]/65">12V DC brushless axial module</div>
+          <div className="text-[11px] text-[#103B66]/65">Perbandingan langsung PM10</div>
         </div>
       </section>
 
-      {/* Conditional Pressure Drop & Airflow Row */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="airskin-card p-5 flex items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#176FAF]">
-              <Gauge className="w-4 h-4" />
-              <span>DIFFERENTIAL PRESSURE DROP (ΔP)</span>
-            </div>
-            <div className="mt-1.5 font-mono tabular-nums text-2xl font-semibold text-[#103B66]">
-              {config.hasPressureSensor && latest?.pressureDropPa !== null && latest?.pressureDropPa !== undefined
-                ? `${latest.pressureDropPa.toFixed(1)} Pa`
-                : 'Awaiting Sensor'}
-            </div>
-            <p className="mt-1 text-xs text-[#103B66]/65">
-              {config.hasPressureSensor
-                ? 'Differential pressure transducer enabled'
-                : 'Displayed only when a differential pressure sensor is installed.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="airskin-card p-5 flex items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#176FAF]">
-              <Wind className="w-4 h-4" />
-              <span>VOLUMETRIC AIRFLOW (Q)</span>
-            </div>
-            <div className="mt-1.5 font-mono tabular-nums text-2xl font-semibold text-[#103B66]">
-              {config.hasAirflowSensor && latest?.airflowM3h !== null && latest?.airflowM3h !== undefined
-                ? `${latest.airflowM3h.toFixed(1)} m³/h`
-                : 'Awaiting Sensor'}
-            </div>
-            <p className="mt-1 text-xs text-[#103B66]/65">
-              {config.hasAirflowSensor
-                ? 'Hot-wire anemometer / flow sensor enabled'
-                : 'Displayed only when a calibrated airflow measurement system is available.'}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Formula & Interactive Calculator */}
+      {/* Rumus & Kalkulator Efisiensi Filtrasi */}
       <section className="airskin-card p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
         <div className="lg:col-span-6 space-y-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-[#176FAF]">
             <Calculator className="w-4 h-4" />
-            <span>PARTICULATE REMOVAL EFFICIENCY EQUATION</span>
+            <span>Rumus Efisiensi Filtrasi</span>
           </div>
-          <div className="rounded-xl border border-[#B9E0F8] bg-[#F5FAFF] px-5 py-4 font-mono text-lg sm:text-xl font-semibold text-[#103B66]">
-            η = ((C<sub>in</sub> − C<sub>out</sub>) / C<sub>in</sub>) × 100%
+          <div className="rounded-xl border border-[#B9E0F8] bg-[#F5FAFF] px-5 py-4 font-mono text-sm sm:text-base font-semibold text-[#103B66]">
+            Efisiensi Filtrasi (%) = ((Konsentrasi Masuk − Konsentrasi Keluar) / Konsentrasi Masuk) × 100%
           </div>
-          <ul className="space-y-1 text-xs text-[#103B66]/80">
-            <li>
-              <span className="font-mono font-semibold text-[#176FAF]">C<sub>in</sub></span> = inlet particulate concentration (µg/m³)
-            </li>
-            <li>
-              <span className="font-mono font-semibold text-[#458B6D]">C<sub>out</sub></span> = outlet particulate concentration (µg/m³)
-            </li>
-            <li>
-              <span className="font-mono font-semibold text-[#103B66]">η</span> = particulate removal efficiency (%)
-            </li>
-          </ul>
+          <p className="text-xs text-[#103B66]/75">
+            Rumus hanya dapat menghasilkan angka valid jika Konsentrasi Masuk &gt; 0 dan nilai pengukuran Udara Keluar tersedia.
+          </p>
         </div>
 
-        <div className="lg:col-span-6 rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-5 space-y-4">
-          <div className="text-xs font-semibold text-[#103B66]">Interactive Formula Verification</div>
+        <div className="lg:col-span-6 rounded-xl border border-[#DCEEFB] bg-[#F5FAFF] p-5 space-y-3">
+          <div className="text-xs font-semibold text-[#103B66]">Simulasi Perhitungan Manual Rumus</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
             <label className="text-xs text-[#103B66]">
-              <span>C_in (µg/m³)</span>
+              <span>Konsentrasi Masuk (µg/m³)</span>
               <input
                 type="number"
                 step="0.1"
                 min="0.1"
                 value={calcCin}
                 onChange={(e) => setCalcCin(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-sm focus:border-[#429EDB] focus:outline-none"
+                className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-xs"
               />
             </label>
             <label className="text-xs text-[#103B66]">
-              <span>C_out (µg/m³)</span>
+              <span>Konsentrasi Keluar (µg/m³)</span>
               <input
                 type="number"
                 step="0.1"
                 min="0"
                 value={calcCout}
                 onChange={(e) => setCalcCout(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-sm focus:border-[#429EDB] focus:outline-none"
+                className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-xs"
               />
             </label>
             <div className="rounded-xl bg-[#103B66] px-4 py-2 text-white">
-              <div className="text-[11px] text-[#B9E0F8]">Calculated η</div>
+              <div className="text-[11px] text-[#B9E0F8]">Efisiensi</div>
               <div className="font-mono tabular-nums text-lg font-semibold">{calcEta}%</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Filter Comparison Interface (A/B/C/D) */}
+      {/* Grafik Perbandingan PM2.5 & PM10 + Riwayat Pengujian */}
       <section className="airskin-card p-6 space-y-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <FlaskConical className="w-4 h-4 text-[#176FAF]" />
               <h2 className="font-[Poppins] text-base font-semibold text-[#103B66]">
-                Experimental Configuration Comparison (A / B / C / D)
+                Grafik Perbandingan & Riwayat Pengujian Media
               </h2>
             </div>
             <p className="mt-0.5 text-xs text-[#103B66]/70">
-              Compare Nonwoven only, Coconut coir only, Dual-stage Nonwoven + Coir, and No-filter control.
+              Catat hasil uji laboratorium untuk membandingkan efisiensi filtrasi PM2.5 dan PM10 antar konfigurasi media.
             </p>
           </div>
 
@@ -324,7 +278,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
               className="inline-flex items-center gap-1.5 rounded-xl bg-[#176FAF] px-4 py-2 text-xs font-medium text-white hover:bg-[#103B66] whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
-              Upload Controlled Trial
+              Catat Hasil Pengujian
             </button>
             {experiments.length === 0 ? (
               <button
@@ -332,7 +286,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
                 onClick={onLoadSampleTrials}
                 className="rounded-xl border border-[#82C5EF] bg-white px-4 py-2 text-xs font-medium text-[#103B66] hover:bg-[#EAF6FF] whitespace-nowrap"
               >
-                Load Sample Reference Dataset (Demo)
+                Muat Pratinjau DATA SIMULASI
               </button>
             ) : (
               <button
@@ -341,31 +295,30 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
                 className="inline-flex items-center gap-1.5 rounded-xl border border-[#B9E0F8] bg-white px-3.5 py-2 text-xs font-medium text-[#103B66] hover:bg-[#EAF6FF] whitespace-nowrap"
               >
                 <Trash2 className="w-3.5 h-3.5 text-[#176FAF]" />
-                Reset to Empty State
+                Kosongkan Riwayat
               </button>
             )}
           </div>
         </div>
 
-        {hasSampleDemo && (
+        {hasSimulationTrial && (
           <div className="rounded-xl border border-[#D7B978] bg-[#FDF8EC] px-4 py-2.5 text-xs text-[#103B66]">
-            <strong>Sample Reference Dataset (Demo):</strong> Currently showing illustrative reference values for comparison chart preview. Upload your lab test runs above to replace them.
+            <strong>DATA SIMULASI:</strong> Data grafik di bawah adalah contoh pratinjau antarmuka, bukan hasil pengujian laboratorium yang telah divalidasi.
           </div>
         )}
 
-        {/* Trial Entry Form */}
         {formOpen && (
           <form onSubmit={handleTrialSubmit} className="rounded-2xl border border-[#B9E0F8] bg-[#F5FAFF] p-5 space-y-4">
             <div className="font-[Poppins] text-sm font-semibold text-[#103B66]">
-              Record Controlled Prototype Trial
+              Input Hasil Pengujian Terukur
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               <label className="text-xs text-[#103B66]">
-                <span className="font-medium">Configuration</span>
+                <span>Konfigurasi Filter</span>
                 <select
                   value={formConfigKey}
                   onChange={(e) => setFormConfigKey(e.target.value as FilterConfigKey)}
-                  className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 text-xs text-[#103B66]"
+                  className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 text-xs"
                 >
                   {CONFIG_DEFINITIONS.map((c) => (
                     <option key={c.key} value={c.key}>
@@ -375,7 +328,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
                 </select>
               </label>
               <label className="text-xs text-[#103B66]">
-                <span className="font-medium">PM2.5 Inlet (µg/m³)</span>
+                <span>PM2.5 Masuk (µg/m³)</span>
                 <input
                   type="number"
                   step="0.1"
@@ -386,7 +339,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
                 />
               </label>
               <label className="text-xs text-[#103B66]">
-                <span className="font-medium">PM2.5 Outlet (µg/m³)</span>
+                <span>PM2.5 Keluar (µg/m³)</span>
                 <input
                   type="number"
                   step="0.1"
@@ -397,7 +350,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
                 />
               </label>
               <label className="text-xs text-[#103B66]">
-                <span className="font-medium">PM10 Inlet (µg/m³)</span>
+                <span>PM10 Masuk (µg/m³)</span>
                 <input
                   type="number"
                   step="0.1"
@@ -408,7 +361,7 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
                 />
               </label>
               <label className="text-xs text-[#103B66]">
-                <span className="font-medium">PM10 Outlet (µg/m³)</span>
+                <span>PM10 Keluar (µg/m³)</span>
                 <input
                   type="number"
                   step="0.1"
@@ -418,44 +371,12 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
                   className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-xs"
                 />
               </label>
-              <label className="text-xs text-[#103B66]">
-                <span className="font-medium">Pressure Drop (Pa, optional)</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="Only if measured"
-                  value={pressurePa}
-                  onChange={(e) => setPressurePa(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-xs"
-                />
-              </label>
-              <label className="text-xs text-[#103B66]">
-                <span className="font-medium">Airflow (m³/h, optional)</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="Only if measured"
-                  value={airflowM3h}
-                  onChange={(e) => setAirflowM3h(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-xs"
-                />
-              </label>
-              <label className="text-xs text-[#103B66]">
-                <span className="font-medium">Fan Power (W, optional)</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={fanPowerW}
-                  onChange={(e) => setFanPowerW(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 font-mono text-xs"
-                />
-              </label>
             </div>
             <label className="block text-xs text-[#103B66]">
-              <span className="font-medium">Lab Notes</span>
+              <span>Catatan Pengujian</span>
               <input
                 type="text"
-                placeholder="e.g., Chamber run #4, RH 58%"
+                placeholder="Misalnya: Uji ruang chamber #2, kecepatan kipas 50%"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-[#B9E0F8] bg-white px-3 py-2 text-xs"
@@ -465,16 +386,16 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="rounded-xl border border-[#B9E0F8] bg-white px-4 py-2 text-xs font-medium text-[#103B66]"
+                className="rounded-xl border border-[#B9E0F8] bg-white px-4 py-2 text-xs text-[#103B66]"
               >
-                Cancel
+                Batal
               </button>
               <button
                 type="submit"
                 disabled={saving}
                 className="rounded-xl bg-[#176FAF] px-4 py-2 text-xs font-medium text-white hover:bg-[#103B66]"
               >
-                {saving ? 'Saving...' : 'Save Trial Result'}
+                {saving ? 'Menyimpan...' : 'Simpan Pengujian'}
               </button>
             </div>
           </form>
@@ -483,18 +404,56 @@ export const FilterPerformancePage: React.FC<FilterPerformancePageProps> = ({
         {experiments.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[#82C5EF] bg-[#F5FAFF] px-6 py-12 text-center">
             <p className="font-[Poppins] text-base font-semibold text-[#103B66]">
-              Awaiting Controlled Test Results
+              Belum Ada Data Hasil Pengujian Tercatat
             </p>
             <p className="mt-1 max-w-lg mx-auto text-xs text-[#103B66]/70">
-              No experimental comparison runs have been uploaded for Configurations A–D. Upload verified laboratory test results or load the labeled sample dataset to evaluate the comparison charts.
+              Tidak ada klaim efisiensi filtrasi yang dibuat sebelum hasil pengujian dimasukkan. Klik &ldquo;Catat Hasil Pengujian&rdquo; atau muat pratinjau DATA SIMULASI.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {renderComparisonBars('PM2.5 Removal Efficiency', '%', (t) => t.pm25Efficiency, 100, '#176FAF')}
-            {renderComparisonBars('PM10 Removal Efficiency', '%', (t) => t.pm10Efficiency, 100, '#72B89A')}
-            {renderComparisonBars('Differential Pressure Drop', 'Pa', (t) => t.pressureDropPa, 50, '#429EDB')}
-            {renderComparisonBars('Volumetric Airflow', 'm³/h', (t) => t.airflowM3h, 70, '#D7B978')}
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {renderComparisonBars('Grafik Perbandingan Efisiensi PM2.5', (t) => t.pm25Efficiency, '#176FAF')}
+              {renderComparisonBars('Grafik Perbandingan Efisiensi PM10', (t) => t.pm10Efficiency, '#72B89A')}
+            </div>
+
+            {/* Tabel Hasil Pengukuran */}
+            <div className="overflow-x-auto rounded-xl border border-[#DCEEFB]">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F5FAFF] text-[#103B66]/70 border-b border-[#DCEEFB]">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Konfigurasi</th>
+                    <th className="px-4 py-3 font-semibold text-right">PM2.5 Masuk</th>
+                    <th className="px-4 py-3 font-semibold text-right">PM2.5 Keluar</th>
+                    <th className="px-4 py-3 font-semibold text-right">Efisiensi PM2.5</th>
+                    <th className="px-4 py-3 font-semibold text-right">PM10 Masuk</th>
+                    <th className="px-4 py-3 font-semibold text-right">PM10 Keluar</th>
+                    <th className="px-4 py-3 font-semibold text-right">Efisiensi PM10</th>
+                    <th className="px-4 py-3 font-semibold">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EAF6FF] font-mono tabular-nums">
+                  {experiments.map((row) => (
+                    <tr key={row.id} className="hover:bg-[#F5FAFF]/60">
+                      <td className="px-4 py-3 font-sans font-medium text-[#103B66]">{row.configLabel}</td>
+                      <td className="px-4 py-3 text-right">{row.pm25Inlet.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right">{row.pm25Outlet.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#176FAF]">
+                        {row.pm25Efficiency.toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3 text-right">{row.pm10Inlet.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right">{row.pm10Outlet.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#458B6D]">
+                        {row.pm10Efficiency.toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3 font-sans text-[#103B66]/75">
+                        {row.isSimulation ? 'DATA SIMULASI' : row.notes || 'Terukur'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>
