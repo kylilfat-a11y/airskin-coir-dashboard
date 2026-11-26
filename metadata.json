@@ -1,6 +1,6 @@
 {
-  "name": "AIRSKIN COIR — Sistem Pemantauan Kualitas Udara dan Kinerja Filtrasi",
-  "description": "Aplikasi web dashboard IoT interaktif untuk memantau kualitas udara sekitar bangunan, kinerja panel filtrasi berbahan serabut kelapa, serta kondisi ESP32 dan sensor partikulat.",
+  "name": "AIRSKIN COIR | Smart Air Filtration Monitoring System",
+  "description": "Smart Air Quality Monitoring dashboard for facade filtration prototypes combining kapok fiber, processed rice straw, and front-rear nonwoven media with Live IoT Monitoring and Simulation Mode.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

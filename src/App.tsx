@@ -1,312 +1,243 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Menu, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { ArrowLeftRight, Clock, Menu, Radio, WifiOff } from 'lucide-react';
 import type {
-  FilterConfigKey,
-  MaintenanceStatus,
+  DashboardMode,
   NavSection,
-  SimulationScenarioKey,
-  SystemConfig,
   SystemStatePayload,
+  TimeRangeFilter,
 } from './types/airskin';
+import { formatTimestamp } from './utils/airskinMetrics';
+import { BrandLogo } from './components/BrandLogo';
 import { Sidebar } from './components/Sidebar';
 import { OverviewPage } from './pages/OverviewPage';
-import { LiveMonitoringPage } from './pages/LiveMonitoringPage';
-import { FacadePanelsPage } from './pages/FacadePanelsPage';
-import { AirQualityAnalyticsPage } from './pages/AirQualityAnalyticsPage';
-import { FilterPerformancePage } from './pages/FilterPerformancePage';
-import { MaintenancePage } from './pages/MaintenancePage';
-import { ReportsPage } from './pages/ReportsPage';
-import { SettingsPage } from './pages/SettingsPage';
+import { VisualizationPage } from './pages/VisualizationPage';
+import { MechanismPage } from './pages/MechanismPage';
+import { SimulationPage } from './pages/SimulationPage';
+import { BenchmarkPage } from './pages/BenchmarkPage';
+import { DevicesPage } from './pages/DevicesPage';
 
 export default function App() {
-  const [activeSection, setActiveSection] = useState<NavSection>('ringkasan');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [systemState, setSystemState] = useState<SystemStatePayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nowClock, setNowClock] = useState(() => new Date());
+  const [activeSection, setActiveSection] = useState<NavSection>('overview');
+  const [timeRange, setTimeRange] = useState<TimeRangeFilter>('15m');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [state, setState] = useState<SystemStatePayload | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const fetchState = useCallback(async () => {
     try {
       const resp = await fetch('/api/system/state');
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
+      if (resp.ok) {
+        const data = (await resp.json()) as SystemStatePayload;
+        setState(data);
       }
-      const data = (await resp.json()) as SystemStatePayload;
-      setSystemState(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal terhubung ke server telemetri');
-    } finally {
-      setLoading(false);
+    } catch {
+      // ignore transient network errors during poll
     }
   }, []);
 
   useEffect(() => {
     fetchState();
+    const poll = window.setInterval(fetchState, 3000);
+    return () => window.clearInterval(poll);
   }, [fetchState]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNowClock(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
+    if (!state?.simulation.running) return;
+    const stepTimer = window.setInterval(async () => {
+      try {
+        await fetch('/api/simulation/step', { method: 'POST' });
+        await fetchState();
+      } catch {
+        // ignore transient error
+      }
+    }, 3000);
+    return () => window.clearInterval(stepTimer);
+  }, [state?.simulation.running, fetchState]);
 
-  useEffect(() => {
-    const intervalMs = (systemState?.config.refreshIntervalSec ?? 10) * 1000;
-    const poller = window.setInterval(fetchState, intervalMs);
-    return () => window.clearInterval(poller);
-  }, [fetchState, systemState?.config.refreshIntervalSec]);
+  const handleToggleMode = async () => {
+    if (!state || busy) return;
+    const nextMode: DashboardMode = state.mode === 'simulation' ? 'live' : 'simulation';
+    setBusy(true);
+    try {
+      await fetch('/api/system/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: nextMode }),
+      });
+      await fetchState();
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  async function handleToggleMode(mode: 'menunggu_koneksi' | 'data_simulasi') {
-    await fetch('/api/system/mode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
-    });
-    await fetchState();
+  const handleStartSimulation = async (pm25: number, pm10: number) => {
+    setBusy(true);
+    try {
+      await fetch('/api/simulation/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initialPm25Inlet: pm25,
+          initialPm10Inlet: pm10,
+        }),
+      });
+      await fetchState();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResetSimulation = async () => {
+    setBusy(true);
+    try {
+      await fetch('/api/simulation/reset', { method: 'POST' });
+      await fetchState();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!state) {
+    return (
+      <div className="min-h-screen bg-[#EAF6FF] flex items-center justify-center p-6">
+        <div className="airskin-card px-8 py-6 flex items-center gap-4">
+          <BrandLogo className="w-10 h-10 animate-pulse" />
+          <div>
+            <p className="font-display font-semibold text-[#103B66]">AIRSKIN COIR</p>
+            <p className="text-xs text-[#176FAF]">Memuat sistem pemantauan kualitas udara...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  async function handleChangeSimulationPreset(
-    scenario: SimulationScenarioKey,
-    filterConfig: FilterConfigKey,
-  ) {
-    await fetch('/api/system/simulation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario, filterConfig, activate: true }),
-    });
-    await fetchState();
-  }
-
-  async function handleSendTestPacket(payload: {
-    pm25Inlet: number;
-    pm25Outlet: number | null;
-    pm10Inlet: number;
-    pm10Outlet: number | null;
-  }) {
-    await fetch('/api/telemetry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...payload,
-        panelId: systemState?.config.activePanelId || 'AC-01',
-      }),
-    });
-    await fetchState();
-  }
-
-  async function handleSaveConfig(patch: Partial<SystemConfig>) {
-    await fetch('/api/system/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-    await fetchState();
-  }
-
-  async function handleAddTrial(trial: {
-    configKey: FilterConfigKey;
-    pm25Inlet: number;
-    pm25Outlet: number;
-    pm10Inlet: number;
-    pm10Outlet: number;
-    notes: string;
-  }) {
-    await fetch('/api/experiments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(trial),
-    });
-    await fetchState();
-  }
-
-  async function handleLoadSampleTrials() {
-    await fetch('/api/experiments/load-sample', { method: 'POST' });
-    await fetchState();
-  }
-
-  async function handleClearTrials() {
-    await fetch('/api/experiments', { method: 'DELETE' });
-    await fetchState();
-  }
-
-  async function handleAddMaintenance(record: {
-    panelId: string;
-    inspector: string;
-    recordType: 'Pemeriksaan Rutin' | 'Penggantian Media' | 'Audit Kelembapan & Casing';
-    coirCondition: string;
-    nonwovenCondition: string;
-    status: MaintenanceStatus;
-    notes: string;
-  }) {
-    await fetch('/api/maintenance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record),
-    });
-    await fetchState();
-  }
-
-  const formattedDate = nowClock.toLocaleDateString('id-ID', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-
-  const formattedTime = nowClock.toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-
-  const statusKoneksi =
-    systemState?.mode === 'terhubung_esp32'
-      ? 'Terhubung'
-      : systemState?.mode === 'data_simulasi'
-        ? 'DATA SIMULASI (Menunggu Koneksi)'
-        : 'Menunggu koneksi';
+  const isSimulation = state.mode === 'simulation';
 
   return (
-    <div className="min-h-screen flex bg-[#EAF6FF] text-[#103B66]">
+    <div className="min-h-screen bg-[#EAF6FF] text-[#103B66] flex">
       <Sidebar
         activeSection={activeSection}
-        onNavigate={setActiveSection}
-        mode={systemState?.mode || 'menunggu_koneksi'}
-        connectionState={systemState?.connectionState || 'Menunggu koneksi'}
-        mobileOpen={mobileMenuOpen}
-        onCloseMobile={() => setMobileMenuOpen(false)}
+        onSelectSection={setActiveSection}
+        deviceConnected={state.deviceConnected}
+        mode={state.mode}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header Atas: Nama Aplikasi, Tanggal, Jam, Status Koneksi */}
-        <header className="sticky top-0 z-30 border-b border-[#B9E0F8] bg-white/95 backdrop-blur-md px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Top Dashboard Header */}
+        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-[#CBE7FA] px-4 sm:px-6 lg:px-8 py-3.5">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            {/* Brand + Title */}
             <div className="flex items-center gap-3 min-w-0">
               <button
                 type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                className="rounded-lg p-1.5 text-[#103B66] hover:bg-[#EAF6FF] lg:hidden"
+                onClick={() => setMobileOpen(true)}
+                className="lg:hidden p-2 rounded-xl border border-[#B9E0F8] text-[#103B66] hover:bg-[#EAF6FF]"
                 aria-label="Buka menu navigasi"
               >
                 <Menu className="w-5 h-5" />
               </button>
-
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[#103B66]/80">
-                <span className="font-[Poppins] font-semibold text-sm text-[#103B66]">
-                  AIRSKIN COIR
-                </span>
-                <span aria-hidden="true" className="text-[#82C5EF] hidden sm:inline">·</span>
-                <span className="hidden sm:inline text-[#176FAF] font-medium">
-                  Sistem Pemantauan Filtrasi Udara Berbasis IoT
-                </span>
-                <span aria-hidden="true" className="text-[#82C5EF]">·</span>
-                <span className="font-mono tabular-nums text-[#103B66]">
-                  {formattedDate} · {formattedTime}
-                </span>
-                <span aria-hidden="true" className="text-[#82C5EF] hidden md:inline">·</span>
-                <span
-                  className={`font-semibold hidden md:inline ${
-                    systemState?.mode === 'terhubung_esp32'
-                      ? 'text-[#458B6D]'
-                      : systemState?.mode === 'data_simulasi'
-                        ? 'text-[#A68338]'
-                        : 'text-[#176FAF]'
-                  }`}
-                >
-                  Status: {statusKoneksi}
-                </span>
+              <BrandLogo className="w-9 h-9 shrink-0 lg:hidden" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-display text-sm font-bold tracking-wide text-[#176FAF] lg:hidden">
+                    AIRSKIN COIR
+                  </span>
+                  <h1 className="font-display text-base sm:text-lg font-semibold text-[#103B66] truncate">
+                    Smart Air Quality Monitoring
+                  </h1>
+                </div>
+                <p className="text-[11px] text-[#103B66]/65 truncate">
+                  Prototipe Fasad Filtrasi Udara: Serat Kapuk • Jerami Padi • Nonwoven Depan-Belakang
+                </p>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={fetchState}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#B9E0F8] bg-[#F5FAFF] px-3 py-1.5 text-xs font-medium text-[#176FAF] hover:bg-[#EAF6FF] transition-colors whitespace-nowrap shrink-0"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Perbarui
-            </button>
+            {/* Status Indicators & Mode Switch */}
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+              {/* Device Connection Indicator */}
+              <div className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#D4ECFC] bg-[#F8FCFF]">
+                {state.deviceConnected ? (
+                  <Radio className="w-3.5 h-3.5 text-[#2F6F54]" />
+                ) : (
+                  <WifiOff className="w-3.5 h-3.5 text-[#9B7A2C]" />
+                )}
+                <span className="text-[#103B66]/70 hidden sm:inline">Perangkat:</span>
+                <span
+                  className={`font-semibold ${
+                    state.deviceConnected ? 'text-[#2F6F54]' : 'text-[#8A6D2E]'
+                  }`}
+                >
+                  {state.deviceConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+
+              {/* Mode Indicator */}
+              <div
+                className={`text-xs font-mono font-semibold px-2.5 py-1.5 rounded-lg border ${
+                  isSimulation
+                    ? 'bg-[#FCF7EC] border-[#D7B978] text-[#7A5E1B]'
+                    : 'bg-[#EFF9F4] border-[#72B89A] text-[#2F6F54]'
+                }`}
+              >
+                {isSimulation ? 'Simulation' : 'Live Data'}
+              </div>
+
+              {/* Last Updated Timestamp */}
+              <div className="hidden md:flex items-center gap-1.5 text-xs text-[#103B66]/75 font-mono tabular-nums px-2.5 py-1.5 rounded-lg bg-[#F5FAFF] border border-[#DCEEFB]">
+                <Clock className="w-3.5 h-3.5 text-[#176FAF]" />
+                <span>Update: {formatTimestamp(state.lastUpdatedAt)}</span>
+              </div>
+
+              {/* Mode Toggle Button */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleToggleMode}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#176FAF] hover:bg-[#103B66] text-white text-xs font-semibold transition-colors disabled:opacity-60"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                <span>
+                  {isSimulation ? 'Ke Live IoT Mode' : 'Ke Simulation Mode'}
+                </span>
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* Konten Utama Berdasarkan Menu Terpilih */}
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 max-w-[1360px] w-full mx-auto">
-          {loading && !systemState ? (
-            <div className="space-y-4">
-              <div className="h-10 w-64 rounded-xl bg-[#D7ECFB] animate-pulse" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-32 rounded-2xl bg-[#D7ECFB] animate-pulse" />
-                ))}
-              </div>
-              <div className="h-64 w-full rounded-2xl bg-[#D7ECFB] animate-pulse" />
-            </div>
-          ) : error && !systemState ? (
-            <div className="airskin-card p-6 text-center space-y-3">
-              <p className="font-[Poppins] text-base font-semibold text-[#103B66]">
-                Layanan Telemetri Tidak Terjangkau
-              </p>
-              <p className="text-xs text-[#103B66]/70">{error}</p>
-              <button
-                type="button"
-                onClick={fetchState}
-                className="rounded-xl bg-[#176FAF] px-4 py-2 text-xs font-medium text-white"
-              >
-                Coba Hubungkan Ulang
-              </button>
-            </div>
-          ) : systemState ? (
-            <>
-              {activeSection === 'ringkasan' && (
-                <OverviewPage
-                  state={systemState}
-                  onNavigate={setActiveSection}
-                  onToggleMode={handleToggleMode}
-                  onChangeSimulationPreset={handleChangeSimulationPreset}
-                />
-              )}
-              {activeSection === 'pemantauan' && (
-                <LiveMonitoringPage
-                  state={systemState}
-                  onToggleMode={handleToggleMode}
-                  onChangeSimulationPreset={handleChangeSimulationPreset}
-                  onSendTestPacket={handleSendTestPacket}
-                />
-              )}
-              {activeSection === 'panel' && <FacadePanelsPage state={systemState} />}
-              {activeSection === 'kinerja' && (
-                <FilterPerformancePage
-                  state={systemState}
-                  onAddTrial={handleAddTrial}
-                  onLoadSampleTrials={handleLoadSampleTrials}
-                  onClearTrials={handleClearTrials}
-                />
-              )}
-              {activeSection === 'analisis' && (
-                <AirQualityAnalyticsPage
-                  state={systemState}
-                  onToggleMode={handleToggleMode}
-                  onChangeSimulationPreset={handleChangeSimulationPreset}
-                />
-              )}
-              {activeSection === 'pemeliharaan' && (
-                <MaintenancePage
-                  state={systemState}
-                  onAddRecord={handleAddMaintenance}
-                />
-              )}
-              {activeSection === 'laporan' && <ReportsPage state={systemState} />}
-              {activeSection === 'pengaturan' && (
-                <SettingsPage
-                  state={systemState}
-                  onSaveConfig={handleSaveConfig}
-                  onRefreshState={fetchState}
-                  onSendTestPacket={handleSendTestPacket}
-                />
-              )}
-            </>
-          ) : null}
+        {/* Main Content */}
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-7xl mx-auto">
+            {activeSection === 'overview' && (
+              <OverviewPage
+                state={state}
+                timeRange={timeRange}
+                onChangeTimeRange={setTimeRange}
+                onNavigate={setActiveSection}
+              />
+            )}
+            {activeSection === 'visualization' && (
+              <VisualizationPage
+                state={state}
+                timeRange={timeRange}
+                onChangeTimeRange={setTimeRange}
+              />
+            )}
+            {activeSection === 'mechanism' && <MechanismPage state={state} />}
+            {activeSection === 'simulation' && (
+              <SimulationPage
+                state={state}
+                onStartSimulation={handleStartSimulation}
+                onResetSimulation={handleResetSimulation}
+                busy={busy}
+              />
+            )}
+            {activeSection === 'benchmark' && <BenchmarkPage />}
+            {activeSection === 'devices' && (
+              <DevicesPage state={state} onRefreshState={fetchState} />
+            )}
+          </div>
         </main>
       </div>
     </div>

@@ -1,304 +1,309 @@
 import React, { useMemo, useState } from 'react';
 import type { TelemetryPoint } from '../types/airskin';
+import { calcRemovalEfficiency, formatShortTime } from '../utils/airskinMetrics';
 
 interface InteractiveTrendChartProps {
-  data: TelemetryPoint[];
+  title: string;
+  subtitle: string;
+  unit?: string;
+  points: TelemetryPoint[];
   metric: 'pm25' | 'pm10';
-  unit: 'µg/m³' | 'mg/m³';
-  hasOutletSensor: boolean;
-  isSimulation?: boolean;
-  onRequestDemo?: () => void;
+  isSimulated: boolean;
+  emptyMessage?: string;
 }
 
 export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
-  data,
+  title,
+  subtitle,
+  unit = 'µg/m³',
+  points,
   metric,
-  unit,
-  hasOutletSensor,
-  isSimulation = false,
-  onRequestDemo,
+  isSimulated,
+  emptyMessage = 'Belum ada pembacaan sensor aktif. Hubungkan ESP32 atau aktifkan Simulation Mode.',
 }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const scaleFactor = unit === 'mg/m³' ? 0.001 : 1;
-  const decimals = unit === 'mg/m³' ? 3 : 1;
+  const width = 640;
+  const height = 240;
+  const padLeft = 46;
+  const padRight = 18;
+  const padTop = 18;
+  const padBottom = 34;
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
 
   const series = useMemo(() => {
-    return data.map((d) => ({
-      timestamp: d.timestamp,
-      inlet:
-        metric === 'pm25'
-          ? d.pm25Inlet !== null
-            ? d.pm25Inlet * scaleFactor
-            : null
-          : d.pm10Inlet !== null
-            ? d.pm10Inlet * scaleFactor
-            : null,
-      outlet:
-        hasOutletSensor &&
-        (metric === 'pm25' ? d.pm25Outlet !== null : d.pm10Outlet !== null)
-          ? (metric === 'pm25' ? (d.pm25Outlet as number) : (d.pm10Outlet as number)) * scaleFactor
-          : null,
+    return points.map((p) => ({
+      time: formatShortTime(p.timestamp),
+      inlet: metric === 'pm25' ? p.pm25Inlet : p.pm10Inlet,
+      outlet: metric === 'pm25' ? p.pm25Outlet : p.pm10Outlet,
     }));
-  }, [data, metric, scaleFactor, hasOutletSensor]);
+  }, [points, metric]);
 
-  const width = 760;
-  const height = 260;
-  const pad = { top: 20, right: 20, bottom: 38, left: 52 };
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
+  const numericValues = useMemo(() => {
+    const arr: number[] = [];
+    for (const s of series) {
+      if (s.inlet !== null) arr.push(s.inlet);
+      if (s.outlet !== null) arr.push(s.outlet);
+    }
+    return arr;
+  }, [series]);
 
-  if (series.length === 0) {
-    return (
-      <div className="relative flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#82C5EF] bg-[#F5FAFF] px-6 py-14 text-center">
-        <svg viewBox="0 0 320 80" className="w-60 h-16 mb-3 opacity-60" aria-hidden="true">
-          <line x1="20" y1="68" x2="300" y2="68" stroke="#B9E0F8" strokeWidth="1.5" />
-          <line x1="20" y1="40" x2="300" y2="40" stroke="#B9E0F8" strokeWidth="1" strokeDasharray="4 4" />
-          <path
-            d="M 20 50 Q 95 36 160 46 T 300 38"
-            fill="none"
-            stroke="#82C5EF"
-            strokeWidth="2"
-            strokeDasharray="6 4"
-          />
-        </svg>
-        <p className="font-[Poppins] text-base font-semibold text-[#103B66]">
-          Menunggu data sensor
-        </p>
-        <p className="mt-1 max-w-md text-xs text-[#103B66]/70">
-          Hubungkan perangkat ESP32 ke endpoint <span className="font-mono">/api/telemetry</span> atau aktifkan mode DATA SIMULASI untuk melihat pratinjau grafik tren.
-        </p>
-        {onRequestDemo && (
-          <button
-            type="button"
-            onClick={onRequestDemo}
-            className="mt-4 rounded-xl bg-[#176FAF] px-4 py-2 text-xs font-medium text-white hover:bg-[#103B66] transition-colors whitespace-nowrap"
-          >
-            Tampilkan Pratinjau DATA SIMULASI
-          </button>
-        )}
-      </div>
-    );
-  }
+  const maxVal = useMemo(() => {
+    if (numericValues.length === 0) return 100;
+    const peak = Math.max(...numericValues);
+    return Math.max(20, Math.ceil(peak * 1.15));
+  }, [numericValues]);
 
-  const allValues = series.flatMap((s) => [s.inlet, s.outlet]).filter((v): v is number => v !== null);
-  const rawMax = Math.max(...allValues, unit === 'mg/m³' ? 0.05 : 25);
-  const yMax = rawMax * 1.18;
-  const yMin = 0;
+  const minVal = 0;
 
-  const getX = (idx: number) =>
-    series.length === 1 ? pad.left + plotW / 2 : pad.left + (idx / (series.length - 1)) * plotW;
-  const getY = (val: number) => pad.top + plotH - ((val - yMin) / (yMax - yMin || 1)) * plotH;
+  const getX = (idx: number) => {
+    if (series.length <= 1) return padLeft + plotW / 2;
+    return padLeft + (idx / (series.length - 1)) * plotW;
+  };
 
-  const inletPoints = series
-    .map((s, idx) => (s.inlet !== null ? `${getX(idx).toFixed(1)},${getY(s.inlet).toFixed(1)}` : null))
-    .filter((v): v is string => v !== null);
+  const getY = (val: number) => {
+    const ratio = (val - minVal) / (maxVal - minVal || 1);
+    return padTop + plotH - ratio * plotH;
+  };
 
-  const outletPoints = series
-    .map((s, idx) => (s.outlet !== null ? `${getX(idx).toFixed(1)},${getY(s.outlet).toFixed(1)}` : null))
-    .filter((v): v is string => v !== null);
+  const buildPath = (extractor: (item: (typeof series)[number]) => number | null) => {
+    let path = '';
+    let started = false;
+    series.forEach((item, idx) => {
+      const val = extractor(item);
+      if (val === null) {
+        started = false;
+        return;
+      }
+      const x = getX(idx).toFixed(1);
+      const y = getY(val).toFixed(1);
+      path += started ? ` L ${x} ${y}` : `M ${x} ${y}`;
+      started = true;
+    });
+    return path;
+  };
 
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => yMin + t * (yMax - yMin));
-  const xTickIndices =
-    series.length <= 5
-      ? series.map((_, i) => i)
-      : [
-          0,
-          Math.floor(series.length * 0.25),
-          Math.floor(series.length * 0.5),
-          Math.floor(series.length * 0.75),
-          series.length - 1,
-        ];
+  const inletPath = buildPath((item) => item.inlet);
+  const outletPath = buildPath((item) => item.outlet);
 
-  const activePoint = hoverIdx !== null && series[hoverIdx] ? series[hoverIdx] : null;
+  const activeIndex =
+    hoverIdx !== null && hoverIdx >= 0 && hoverIdx < series.length
+      ? hoverIdx
+      : series.length > 0
+        ? series.length - 1
+        : null;
+
+  const activePoint = activeIndex !== null ? series[activeIndex] : null;
+  const activeEfficiency = activePoint
+    ? calcRemovalEfficiency(activePoint.inlet, activePoint.outlet)
+    : null;
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(minVal + (maxVal - minVal) * t));
 
   return (
-    <div className="relative w-full">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[#103B66]/80">
-        <div className="flex flex-wrap items-center gap-5">
-          <span className="inline-flex items-center gap-2 font-medium">
-            <span className="h-2.5 w-5 rounded-xs bg-[#176FAF]" aria-hidden="true" />
-            Udara Masuk ({metric === 'pm25' ? 'PM2.5' : 'PM10'})
-          </span>
-          {hasOutletSensor && outletPoints.length > 0 ? (
-            <span className="inline-flex items-center gap-2 font-medium">
-              <span className="h-2.5 w-5 rounded-xs bg-[#72B89A]" aria-hidden="true" />
-              Udara Keluar (Terfiltrasi)
+    <div className="airskin-card p-5 flex flex-col justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h3 className="font-display text-base font-semibold text-[#103B66]">{title}</h3>
+            <span
+              className={`text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${
+                isSimulated
+                  ? 'bg-[#D7B978]/15 text-[#8A6D2E] border-[#D7B978]/50'
+                  : 'bg-[#72B89A]/15 text-[#2F6F54] border-[#72B89A]/50'
+              }`}
+            >
+              {isSimulated ? 'SIMULATED DATA' : 'LIVE IoT DATA'}
             </span>
-          ) : (
-            <span className="text-[#103B66]/55">
-              Sensor udara keluar belum terpasang · Menampilkan aliran udara masuk
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 font-mono text-[11px] text-[#103B66]/70">
-          {isSimulation && <span className="font-semibold text-[#A68338]">DATA SIMULASI</span>}
-          <span>Satuan: {unit}</span>
-        </div>
-      </div>
-
-      <div className="relative w-full overflow-x-auto">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full min-w-[540px] select-none"
-          role="img"
-          aria-label={`Grafik tren konsentrasi ${metric.toUpperCase()}`}
-        >
-          <defs>
-            <linearGradient id={`inletGrad-${metric}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#429EDB" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#429EDB" stopOpacity="0.01" />
-            </linearGradient>
-          </defs>
-
-          {yTicks.map((tickVal, idx) => {
-            const y = getY(tickVal);
-            return (
-              <g key={idx}>
-                <line
-                  x1={pad.left}
-                  y1={y}
-                  x2={width - pad.right}
-                  y2={y}
-                  stroke="#DCEEFB"
-                  strokeWidth="1"
-                />
-                <text
-                  x={pad.left - 8}
-                  y={y + 4}
-                  textAnchor="end"
-                  className="fill-[#103B66]/60 font-mono text-[10px]"
-                >
-                  {tickVal.toFixed(decimals)}
-                </text>
-              </g>
-            );
-          })}
-
-          {xTickIndices.map((idx) => {
-            const point = series[idx];
-            if (!point) return null;
-            const timeLabel = new Date(point.timestamp).toLocaleTimeString('id-ID', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-            return (
-              <text
-                key={idx}
-                x={getX(idx)}
-                y={height - 10}
-                textAnchor="middle"
-                className="fill-[#103B66]/60 font-mono text-[10px]"
-              >
-                {timeLabel}
-              </text>
-            );
-          })}
-
-          {inletPoints.length > 1 && (
-            <polygon
-              points={`${getX(0)},${pad.top + plotH} ${inletPoints.join(' ')} ${getX(series.length - 1)},${pad.top + plotH}`}
-              fill={`url(#inletGrad-${metric})`}
-            />
-          )}
-
-          {inletPoints.length > 1 && (
-            <polyline
-              fill="none"
-              stroke="#176FAF"
-              strokeWidth="2.4"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              points={inletPoints.join(' ')}
-            />
-          )}
-
-          {outletPoints.length > 1 && (
-            <polyline
-              fill="none"
-              stroke="#72B89A"
-              strokeWidth="2.4"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              points={outletPoints.join(' ')}
-            />
-          )}
-
-          {hoverIdx !== null && activePoint && (
-            <g>
-              <line
-                x1={getX(hoverIdx)}
-                y1={pad.top}
-                x2={getX(hoverIdx)}
-                y2={pad.top + plotH}
-                stroke="#429EDB"
-                strokeWidth="1"
-                strokeDasharray="3 3"
-              />
-              {activePoint.inlet !== null && (
-                <circle
-                  cx={getX(hoverIdx)}
-                  cy={getY(activePoint.inlet)}
-                  r="4.5"
-                  fill="#176FAF"
-                  stroke="#FFFFFF"
-                  strokeWidth="2"
-                />
-              )}
-              {activePoint.outlet !== null && (
-                <circle
-                  cx={getX(hoverIdx)}
-                  cy={getY(activePoint.outlet)}
-                  r="4.5"
-                  fill="#72B89A"
-                  stroke="#FFFFFF"
-                  strokeWidth="2"
-                />
-              )}
-            </g>
-          )}
-
-          {series.map((_, idx) => {
-            const colW = plotW / Math.max(series.length, 1);
-            return (
-              <rect
-                key={idx}
-                x={getX(idx) - colW / 2}
-                y={pad.top}
-                width={Math.max(colW, 12)}
-                height={plotH}
-                fill="transparent"
-                className="cursor-crosshair"
-                onMouseEnter={() => setHoverIdx(idx)}
-                onMouseLeave={() => setHoverIdx(null)}
-              />
-            );
-          })}
-        </svg>
-
-        {activePoint && (
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#B9E0F8] bg-[#F5FAFF] px-4 py-2 text-xs">
-            <span className="font-mono tabular-nums text-[#103B66]">
-              {new Date(activePoint.timestamp).toLocaleString('id-ID', {
-                day: '2-digit',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
-            <div className="flex flex-wrap items-center gap-4 font-mono tabular-nums">
-              <span className="text-[#176FAF] font-semibold">
-                Masuk: {activePoint.inlet !== null ? `${activePoint.inlet.toFixed(decimals)} ${unit}` : '--'}
-              </span>
-              {hasOutletSensor && (
-                <span className="text-[#458B6D] font-semibold">
-                  Keluar: {activePoint.outlet !== null ? `${activePoint.outlet.toFixed(decimals)} ${unit}` : '--'}
-                </span>
-              )}
-            </div>
           </div>
-        )}
+          <p className="text-xs text-[#176FAF]/85 mt-0.5">{subtitle}</p>
+        </div>
+
+        {/* Interactive Legend */}
+        <div className="flex items-center gap-4 text-xs font-medium">
+          <span className="inline-flex items-center gap-1.5 text-[#103B66]">
+            <span className="w-3 h-0.5 bg-[#176FAF] inline-block" />
+            Inlet ({unit})
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[#103B66]">
+            <span className="w-3 h-0.5 bg-[#72B89A] inline-block" />
+            Outlet ({unit})
+          </span>
+        </div>
       </div>
+
+      {series.length === 0 ? (
+        <div className="h-56 rounded-xl border border-dashed border-[#B9E0F8] bg-[#EAF6FF]/50 flex items-center justify-center px-6 text-center">
+          <p className="text-sm text-[#103B66]/75 max-w-md">{emptyMessage}</p>
+        </div>
+      ) : (
+        <>
+          <div className="relative w-full">
+            <svg
+              viewBox={`0 0 ${width} ${height}`}
+              className="w-full h-auto overflow-visible touch-pan-y"
+              role="img"
+              aria-label={title}
+              onMouseLeave={() => setHoverIdx(null)}
+            >
+              {/* Grid lines & Y-axis ticks */}
+              {yTicks.map((tickVal) => {
+                const y = getY(tickVal);
+                return (
+                  <g key={tickVal}>
+                    <line
+                      x1={padLeft}
+                      y1={y}
+                      x2={width - padRight}
+                      y2={y}
+                      stroke="#D8ECF9"
+                      strokeDasharray="4 4"
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={padLeft - 8}
+                      y={y + 4}
+                      textAnchor="end"
+                      className="fill-[#103B66]/65 text-[10px] font-mono tabular-nums"
+                    >
+                      {tickVal}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* X-axis labels */}
+              {series.map((pt, idx) => {
+                const showLabel =
+                  idx === 0 ||
+                  idx === series.length - 1 ||
+                  idx === Math.floor(series.length / 2);
+                if (!showLabel) return null;
+                return (
+                  <text
+                    key={`${pt.time}-${idx}`}
+                    x={getX(idx)}
+                    y={height - 8}
+                    textAnchor={idx === 0 ? 'start' : idx === series.length - 1 ? 'end' : 'middle'}
+                    className="fill-[#103B66]/65 text-[10px] font-mono tabular-nums"
+                  >
+                    {pt.time}
+                  </text>
+                );
+              })}
+
+              {/* Inlet line */}
+              {inletPath && (
+                <path
+                  d={inletPath}
+                  fill="none"
+                  stroke="#176FAF"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+
+              {/* Outlet line */}
+              {outletPath && (
+                <path
+                  d={outletPath}
+                  fill="none"
+                  stroke="#72B89A"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+
+              {/* Active crosshair */}
+              {activeIndex !== null && (
+                <line
+                  x1={getX(activeIndex)}
+                  y1={padTop}
+                  x2={getX(activeIndex)}
+                  y2={padTop + plotH}
+                  stroke="#429EDB"
+                  strokeWidth="1"
+                  strokeDasharray="3 3"
+                />
+              )}
+
+              {/* Data markers + invisible hit targets */}
+              {series.map((pt, idx) => {
+                const x = getX(idx);
+                const isSelected = activeIndex === idx;
+                return (
+                  <g key={`hit-${idx}`}>
+                    {pt.inlet !== null && (
+                      <circle
+                        cx={x}
+                        cy={getY(pt.inlet)}
+                        r={isSelected ? 4.5 : 2.5}
+                        fill="#176FAF"
+                        stroke="#FFFFFF"
+                        strokeWidth="1.5"
+                      />
+                    )}
+                    {pt.outlet !== null && (
+                      <circle
+                        cx={x}
+                        cy={getY(pt.outlet)}
+                        r={isSelected ? 4.5 : 2.5}
+                        fill="#72B89A"
+                        stroke="#FFFFFF"
+                        strokeWidth="1.5"
+                      />
+                    )}
+                    <rect
+                      x={x - Math.max(8, plotW / (series.length * 2))}
+                      y={padTop}
+                      width={Math.max(16, plotW / Math.max(1, series.length))}
+                      height={plotH}
+                      fill="transparent"
+                      className="cursor-crosshair"
+                      onMouseEnter={() => setHoverIdx(idx)}
+                      onTouchStart={() => setHoverIdx(idx)}
+                      onClick={() => setHoverIdx(idx)}
+                    />
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Interactive Readout Strip */}
+          {activePoint && (
+            <div className="mt-3 pt-3 border-t border-[#E2F1FC] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <span className="text-[#103B66]/65 block">Waktu Sampel</span>
+                <span className="font-mono font-semibold text-[#103B66] tabular-nums">
+                  {activePoint.time}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#103B66]/65 block">Inlet</span>
+                <span className="font-mono font-semibold text-[#176FAF] tabular-nums">
+                  {activePoint.inlet !== null ? `${activePoint.inlet} ${unit}` : '--'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#103B66]/65 block">Outlet</span>
+                <span className="font-mono font-semibold text-[#2F6F54] tabular-nums">
+                  {activePoint.outlet !== null ? `${activePoint.outlet} ${unit}` : '--'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#103B66]/65 block">Selisih / Removal</span>
+                <span className="font-mono font-semibold text-[#103B66] tabular-nums">
+                  {activeEfficiency !== null ? `${activeEfficiency}%` : '--'}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
