@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Poppins", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-ice-blue: #EAF6FF;
+  --color-sky-blue: #B9E0F8;
+  --color-light-blue: #82C5EF;
+  --color-azure-blue: #429EDB;
+  --color-ocean-blue: #176FAF;
+  --color-deep-navy: #103B66;
+  --color-sage-green: #72B89A;
+  --color-soft-gold: #D7B978;
+}
+
+@layer base {
+  html,
+  body {
+    background-color: #EAF6FF;
+    color: #103B66;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle scientific card shadow */
+.airskin-card {
+  background-color: #FFFFFF;
+  border: 1px solid #C8E5F8;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -4px rgba(16, 59, 102, 0.06), 0 1px 4px -1px rgba(23, 111, 175, 0.04);
+}
+
+.airskin-surface-sky {
+  background: linear-gradient(145deg, #F5FAFF 0%, #E1F2FD 100%);
+  border: 1px solid #B9E0F8;
+  border-radius: 16px;
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #EAF6FF;
+}
+::-webkit-scrollbar-thumb {
+  background: #B9E0F8;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #82C5EF;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

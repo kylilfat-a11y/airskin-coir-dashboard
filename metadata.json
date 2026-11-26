@@ -1,0 +1,6 @@
+{
+  "name": "AIRSKIN COIR — Smart Air Quality Monitoring",
+  "description": "Smart building IoT dashboard for monitoring coconut-coir modular air filtration facades, real-time PM2.5/PM10 telemetry, filtration efficiency analytics, and maintenance records.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
