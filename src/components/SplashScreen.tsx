@@ -53,13 +53,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             Pantau Udara, Optimalkan Filtrasi, Bangun Lingkungan Lebih Baik.
           </p>
         </div>
-
-        {/* Bilah progres halus 2 detik */}
-        <div className="pt-1">
-          <div className="h-1.5 w-full rounded-full bg-[#DCEEFB] overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-[#429EDB] to-[#72B89A] rounded-full animate-[splashProgress_1.85s_ease-out_forwards]" />
-          </div>
-        </div>
       </div>
     </div>
   );
