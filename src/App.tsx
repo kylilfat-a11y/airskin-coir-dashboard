@@ -15,6 +15,7 @@ import {
 } from './utils/clientFallbackState';
 import { BrandLogo } from './components/BrandLogo';
 import { Sidebar } from './components/Sidebar';
+import { SplashScreen } from './components/SplashScreen';
 import { RingkasanPage } from './pages/RingkasanPage';
 import { PemantauanUdaraPage } from './pages/PemantauanUdaraPage';
 import { PanelFiltrasiPage } from './pages/PanelFiltrasiPage';
@@ -30,6 +31,7 @@ export default function App() {
   const [state, setState] = useState<SystemStatePayload>(() => createInitialClientState());
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const [nowClock, setNowClock] = useState(() => new Date());
 
   useEffect(() => {
@@ -263,8 +265,13 @@ export default function App() {
     second: '2-digit',
   });
 
+  const handleSplashFinish = useCallback(() => {
+    setShowSplash(false);
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#EAF6FF] text-[#103B66] flex">
+      {showSplash && <SplashScreen durationMs={2000} onFinish={handleSplashFinish} />}
       <Sidebar
         activeSection={activeSection}
         onSelectSection={setActiveSection}

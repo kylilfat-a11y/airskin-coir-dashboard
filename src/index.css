@@ -80,6 +80,15 @@
   }
 }
 
+@keyframes splashProgress {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
 .airflow-stream {
   stroke-dasharray: 6 6;
   animation: airflowDash 1.1s linear infinite;
