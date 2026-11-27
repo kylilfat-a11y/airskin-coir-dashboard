@@ -9,6 +9,7 @@ import type {
 import {
   buildClientSimulationPoint,
   createInitialClientState,
+  fetchWithTimeout,
   parseJsonIfAvailable,
   seedClientSimulation,
 } from './utils/clientFallbackState';
@@ -38,7 +39,7 @@ export default function App() {
 
   const fetchState = useCallback(async () => {
     try {
-      const resp = await fetch('/api/system/state');
+      const resp = await fetchWithTimeout('/api/system/state');
       const data = await parseJsonIfAvailable<SystemStatePayload>(resp);
       if (data) {
         setBackendAvailable(true);
@@ -66,11 +67,11 @@ export default function App() {
     const stepTimer = window.setInterval(async () => {
       if (backendAvailable) {
         try {
-          await fetch('/api/simulation/step', { method: 'POST' });
+          await fetchWithTimeout('/api/simulation/step', { method: 'POST' });
           await fetchState();
           return;
         } catch {
-          // lanjut ke pembaruan lokal
+          // lanjut ke pembaruan lokal agar simulasi tidak berhenti
         }
       }
 
@@ -216,7 +217,7 @@ export default function App() {
             ...prev.deviceStatus,
             esp32Status: nextStatus,
             sensorPmStatus: nextStatus,
-            kipasDcStatus: nextStatus,
+            kipasAcStatus: nextStatus,
           },
         };
       });
@@ -241,7 +242,7 @@ export default function App() {
         deviceStatus: {
           esp32Status: 'Terputus',
           sensorPmStatus: 'Terputus',
-          kipasDcStatus: 'Terputus',
+          kipasAcStatus: 'Terputus',
           lastDataReceived: null,
         },
       }));
@@ -289,7 +290,7 @@ export default function App() {
               </button>
               <BrandLogo className="w-9 h-9 shrink-0 lg:hidden" />
               <div className="min-w-0">
-                <h1 className="font-display text-base sm:text-lg font-semibold text-[#103B66] truncate">
+                <h1 className="font-display text-base sm:text-lg font-bold text-[#103B66] truncate">
                   AIRSKIN COIR
                 </h1>
                 <p className="text-[11px] text-[#176FAF] truncate">

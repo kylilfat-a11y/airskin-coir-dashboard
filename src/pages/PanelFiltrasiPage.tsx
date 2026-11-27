@@ -27,7 +27,7 @@ const SUSUNAN_LAPISAN = [
     bg: '#EEF8FF',
   },
   {
-    nama: 'Kipas DC',
+    nama: 'Kipas AC',
     label: 'Mengalirkan udara melewati panel filter',
     warna: '#103B66',
     bg: '#F2F6FA',
@@ -40,7 +40,7 @@ export const PanelFiltrasiPage: React.FC = () => {
       <div>
         <div className="flex items-center gap-2">
           <Layers className="w-5 h-5 text-[#176FAF]" />
-          <h2 className="font-display text-xl font-semibold text-[#103B66]">
+          <h2 className="font-display text-xl font-bold text-[#103B66]">
             Panel Filtrasi AIRSKIN COIR
           </h2>
         </div>
@@ -56,7 +56,7 @@ export const PanelFiltrasiPage: React.FC = () => {
             <Wind className="w-4 h-4" /> Udara Masuk
           </span>
           <span className="text-[#103B66]/70">
-            Nonwoven depan → Kapuk → Jerami padi → Nonwoven belakang → Kipas DC
+            Nonwoven depan → Kapuk → Jerami padi → Nonwoven belakang → Kipas AC
           </span>
           <span className="inline-flex items-center gap-1.5 text-[#2F6F54]">
             <Fan className="w-4 h-4" /> Udara Keluar
@@ -92,11 +92,11 @@ export const PanelFiltrasiPage: React.FC = () => {
             <text x="537" y="102" textAnchor="middle" className="fill-[#103B66] text-[12px] font-semibold">Nonwoven</text>
             <text x="537" y="118" textAnchor="middle" className="fill-[#103B66]/75 text-[11px]">Belakang</text>
 
-            {/* 5. Kipas DC */}
+            {/* 5. Kipas AC */}
             <rect x="615" y="48" width="100" height="114" rx="10" fill="#E6F2FC" stroke="#103B66" strokeWidth="2" />
             <circle cx="665" cy="96" r="26" fill="#FFFFFF" stroke="#176FAF" strokeWidth="2" />
             <circle cx="665" cy="96" r="6" fill="#103B66" />
-            <text x="665" y="146" textAnchor="middle" className="fill-[#103B66] text-[12px] font-semibold">Kipas DC</text>
+            <text x="665" y="146" textAnchor="middle" className="fill-[#103B66] text-[12px] font-semibold">Kipas AC</text>
 
             {/* Panah aliran antar lapisan */}
             {[164, 309, 464, 589].map((x) => (
@@ -131,7 +131,7 @@ export const PanelFiltrasiPage: React.FC = () => {
                   <ArrowRight className="w-3.5 h-3.5 text-[#429EDB]" />
                 )}
               </div>
-              <p className="font-display text-sm font-semibold text-[#103B66]">{item.nama}</p>
+              <p className="text-sm font-semibold text-[#103B66]">{item.nama}</p>
               <p className="text-xs text-[#103B66]/75 mt-1">{item.label}</p>
             </div>
           ))}

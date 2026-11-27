@@ -108,7 +108,7 @@ function getDeviceStatus(): DeviceStatusSummary {
   return {
     esp32Status: status,
     sensorPmStatus: status,
-    kipasDcStatus: status,
+    kipasAcStatus: status,
     lastDataReceived,
   };
 }

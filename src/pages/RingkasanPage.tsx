@@ -55,7 +55,7 @@ export const RingkasanPage: React.FC<RingkasanPageProps> = ({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-xl font-semibold text-[#103B66]">
+          <h2 className="font-display text-xl font-bold text-[#103B66]">
             Ringkasan Kualitas Udara
           </h2>
           <p className="text-xs sm:text-sm text-[#176FAF]/90 mt-0.5">
@@ -106,21 +106,21 @@ export const RingkasanPage: React.FC<RingkasanPageProps> = ({
             className={`airskin-card p-4 border-t-4 ${item.accent} flex flex-col justify-between`}
           >
             <div className="flex items-start justify-between gap-2">
-              <span className="font-display text-xs font-semibold text-[#103B66]">
+              <span className="text-xs font-semibold text-[#103B66]">
                 {item.label}
               </span>
               {isSimulated && (
-                <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded bg-[#D7B978]/20 text-[#8A6D2E]">
+                <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-[#D7B978]/20 text-[#8A6D2E]">
                   SIMULASI
                 </span>
               )}
             </div>
 
             <div className="mt-3 flex items-baseline gap-1">
-              <span className={`font-display text-2xl font-semibold tabular-nums ${item.color}`}>
+              <span className={`text-2xl font-bold tabular-nums ${item.color}`}>
                 {item.value !== null ? item.value.toFixed(1) : '--'}
               </span>
-              <span className="text-[11px] font-mono text-[#103B66]/65">µg/m³</span>
+              <span className="text-[11px] font-medium text-[#103B66]/65">µg/m³</span>
             </div>
 
             <span className="mt-2 text-[11px] text-[#103B66]/60">
@@ -135,7 +135,7 @@ export const RingkasanPage: React.FC<RingkasanPageProps> = ({
 
         {/* Kartu ke-5: Status ESP32 & Status Sensor */}
         <div className="airskin-card p-4 border-t-4 border-t-[#103B66] flex flex-col justify-between space-y-2.5">
-          <span className="font-display text-xs font-semibold text-[#103B66]">
+          <span className="text-xs font-semibold text-[#103B66]">
             Status Perangkat
           </span>
           <div className="space-y-1.5 text-xs">
@@ -182,10 +182,10 @@ export const RingkasanPage: React.FC<RingkasanPageProps> = ({
             className="w-full h-44 object-cover"
           />
           <div className="p-4 flex-1 flex flex-col justify-center space-y-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-[#176FAF]">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#176FAF]">
               Fasad Bangunan
             </span>
-            <h3 className="font-display text-sm font-semibold text-[#103B66]">
+            <h3 className="text-sm font-semibold text-[#103B66]">
               Panel AIRSKIN COIR
             </h3>
             <p className="text-xs text-[#103B66]/75 leading-relaxed">

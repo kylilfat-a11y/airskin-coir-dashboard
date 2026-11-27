@@ -106,7 +106,7 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="font-display text-base font-semibold text-[#103B66]">{title}</h3>
+            <h3 className="text-base font-semibold text-[#103B66]">{title}</h3>
             <span
               className={`text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${
                 isSimulated
@@ -276,19 +276,19 @@ export const InteractiveTrendChart: React.FC<InteractiveTrendChartProps> = ({
               </div>
               <div>
                 <span className="text-[#103B66]/65 block">Udara Masuk</span>
-                <span className="font-mono font-semibold text-[#176FAF] tabular-nums">
+                <span className="font-bold text-[#176FAF] tabular-nums">
                   {activePoint.inlet !== null ? `${activePoint.inlet} ${unit}` : '--'}
                 </span>
               </div>
               <div>
                 <span className="text-[#103B66]/65 block">Udara Keluar</span>
-                <span className="font-mono font-semibold text-[#2F6F54] tabular-nums">
+                <span className="font-bold text-[#2F6F54] tabular-nums">
                   {activePoint.outlet !== null ? `${activePoint.outlet} ${unit}` : '--'}
                 </span>
               </div>
               <div>
                 <span className="text-[#103B66]/65 block">Efisiensi Sesaat</span>
-                <span className="font-mono font-semibold text-[#103B66] tabular-nums">
+                <span className="font-bold text-[#103B66] tabular-nums">
                   {activeEfficiency !== null ? `${activeEfficiency}%` : '--'}
                 </span>
               </div>

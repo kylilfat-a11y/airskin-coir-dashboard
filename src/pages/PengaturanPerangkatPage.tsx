@@ -39,8 +39,8 @@ export const PengaturanPerangkatPage: React.FC<PengaturanPerangkatPageProps> = (
       icon: Radio,
     },
     {
-      nama: 'Kipas DC',
-      status: state.deviceStatus.kipasDcStatus,
+      nama: 'Kipas AC',
+      status: state.deviceStatus.kipasAcStatus,
       icon: Fan,
     },
   ];
@@ -51,7 +51,7 @@ export const PengaturanPerangkatPage: React.FC<PengaturanPerangkatPageProps> = (
         <div>
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-[#176FAF]" />
-            <h2 className="font-display text-xl font-semibold text-[#103B66]">
+            <h2 className="font-display text-xl font-bold text-[#103B66]">
               Pengaturan Perangkat
             </h2>
           </div>
@@ -93,7 +93,7 @@ export const PengaturanPerangkatPage: React.FC<PengaturanPerangkatPageProps> = (
         </div>
       </div>
 
-      {/* Tiga Komponen: ESP32, Sensor PM, Kipas DC */}
+      {/* Tiga Komponen: ESP32, Sensor PM, Kipas AC */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {komponenList.map((item) => {
           const Icon = item.icon;
@@ -103,7 +103,7 @@ export const PengaturanPerangkatPage: React.FC<PengaturanPerangkatPageProps> = (
                 <div className="w-10 h-10 rounded-xl bg-[#EAF6FF] border border-[#B9E0F8] flex items-center justify-center">
                   <Icon className="w-5 h-5 text-[#176FAF]" />
                 </div>
-                <h3 className="font-display text-base font-semibold text-[#103B66]">
+                <h3 className="text-base font-semibold text-[#103B66]">
                   {item.nama}
                 </h3>
               </div>

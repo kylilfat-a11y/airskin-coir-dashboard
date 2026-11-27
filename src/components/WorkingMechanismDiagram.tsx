@@ -10,7 +10,7 @@ const LAPISAN_FILTER = [
   { nama: 'Kapuk', keterangan: 'Media serat alami ringan', warna: '#D7B978', bg: '#FCF8EE' },
   { nama: 'Jerami Padi', keterangan: 'Media serat lignoselulosa', warna: '#72B89A', bg: '#EFF9F4' },
   { nama: 'Nonwoven Belakang', keterangan: 'Penahan akhir lapisan media', warna: '#429EDB', bg: '#EEF8FF' },
-  { nama: 'Kipas DC', keterangan: 'Penggerak aliran udara', warna: '#103B66', bg: '#F2F6FA' },
+  { nama: 'Kipas AC', keterangan: 'Penggerak aliran udara', warna: '#103B66', bg: '#F2F6FA' },
 ];
 
 export const WorkingMechanismDiagram: React.FC<WorkingMechanismDiagramProps> = ({
@@ -20,11 +20,11 @@ export const WorkingMechanismDiagram: React.FC<WorkingMechanismDiagramProps> = (
     <div className="airskin-card p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-semibold text-[#103B66]">
+          <h3 className="text-base font-semibold text-[#103B66]">
             Aliran Udara Melewati Lapisan Filter
           </h3>
           <p className="text-xs text-[#176FAF]/85">
-            Nonwoven depan → Kapuk → Jerami padi → Nonwoven belakang → Kipas DC
+            Nonwoven depan → Kapuk → Jerami padi → Nonwoven belakang → Kipas AC
           </p>
         </div>
 
@@ -98,7 +98,7 @@ export const WorkingMechanismDiagram: React.FC<WorkingMechanismDiagramProps> = (
                 <ArrowRight className="w-3.5 h-3.5 text-[#429EDB] shrink-0" />
               )}
             </div>
-            <p className="font-display text-xs font-semibold text-[#103B66]">{item.nama}</p>
+            <p className="text-xs font-semibold text-[#103B66]">{item.nama}</p>
             <p className="text-[11px] text-[#103B66]/70 mt-1">{item.keterangan}</p>
           </div>
         ))}

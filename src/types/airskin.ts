@@ -25,7 +25,7 @@ export interface TelemetryPoint {
 export interface DeviceStatusSummary {
   esp32Status: ConnectionState;
   sensorPmStatus: ConnectionState;
-  kipasDcStatus: ConnectionState;
+  kipasAcStatus: ConnectionState;
   lastDataReceived: string | null;
 }
 

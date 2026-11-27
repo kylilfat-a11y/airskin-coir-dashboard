@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Poppins", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Sora", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Manrope", ui-sans-serif, system-ui, sans-serif;
 
   --color-ice-blue: #EAF6FF;
   --color-sky-blue: #B9E0F8;
@@ -21,12 +21,19 @@
     background-color: #EAF6FF;
     color: #103B66;
     font-family: var(--font-sans);
+    font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4 {
+  h1, h2 {
     font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  h3, h4 {
+    font-family: var(--font-sans);
+    font-weight: 600;
   }
 }
 

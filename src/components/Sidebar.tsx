@@ -65,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           <BrandLogo className="w-10 h-10 shrink-0" />
           <div className="min-w-0">
-            <p className="font-display text-base font-semibold tracking-wide text-white truncate">
+            <p className="font-display text-base font-bold tracking-wide text-white truncate">
               AIRSKIN COIR
             </p>
             <p className="text-[11px] leading-tight text-[#B9E0F8]/90 truncate">

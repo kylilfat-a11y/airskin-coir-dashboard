@@ -85,7 +85,7 @@ export function createInitialClientState(): SystemStatePayload {
     deviceStatus: {
       esp32Status: 'Terputus',
       sensorPmStatus: 'Terputus',
-      kipasDcStatus: 'Terputus',
+      kipasAcStatus: 'Terputus',
       lastDataReceived: null,
     },
   };
@@ -101,5 +101,19 @@ export async function parseJsonIfAvailable<T>(resp: Response): Promise<T | null>
     return (await resp.json()) as T;
   } catch {
     return null;
+  }
+}
+
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = 4000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
   }
 }

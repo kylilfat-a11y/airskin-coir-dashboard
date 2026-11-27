@@ -31,7 +31,7 @@ export const PemantauanUdaraPage: React.FC<PemantauanUdaraPageProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-[#176FAF]" />
-            <h2 className="font-display text-xl font-semibold text-[#103B66]">
+            <h2 className="font-display text-xl font-bold text-[#103B66]">
               Pemantauan Udara
             </h2>
           </div>

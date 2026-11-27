@@ -46,7 +46,7 @@ export const BeforeAfterBarChart: React.FC<BeforeAfterBarChartProps> = ({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="font-display text-base font-semibold text-[#103B66]">
+            <h3 className="text-base font-semibold text-[#103B66]">
               Perbandingan Konsentrasi Sebelum dan Sesudah Filtrasi
             </h3>
             <span

@@ -26,7 +26,7 @@ export const KinerjaPenyaringanPage: React.FC<KinerjaPenyaringanPageProps> = ({ 
       <div>
         <div className="flex items-center gap-2">
           <Gauge className="w-5 h-5 text-[#176FAF]" />
-          <h2 className="font-display text-xl font-semibold text-[#103B66]">
+          <h2 className="font-display text-xl font-bold text-[#103B66]">
             Kinerja Filtrasi
           </h2>
         </div>
@@ -38,8 +38,8 @@ export const KinerjaPenyaringanPage: React.FC<KinerjaPenyaringanPageProps> = ({ 
       {/* Hanya Efisiensi Penurunan PM2.5 & PM10 + Rumus */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="airskin-card p-5">
-          <span className="text-xs text-[#103B66]/70">Efisiensi Penurunan PM2.5</span>
-          <p className="font-display text-3xl font-semibold text-[#176FAF] tabular-nums mt-1">
+          <span className="text-xs font-medium text-[#103B66]/70">Efisiensi Penurunan PM2.5</span>
+          <p className="text-3xl font-bold text-[#176FAF] tabular-nums mt-1">
             {effPm25 !== null ? `${effPm25}%` : '--'}
           </p>
           <p className="text-xs text-[#103B66]/65 mt-1">
@@ -48,8 +48,8 @@ export const KinerjaPenyaringanPage: React.FC<KinerjaPenyaringanPageProps> = ({ 
         </div>
 
         <div className="airskin-card p-5">
-          <span className="text-xs text-[#103B66]/70">Efisiensi Penurunan PM10</span>
-          <p className="font-display text-3xl font-semibold text-[#2F6F54] tabular-nums mt-1">
+          <span className="text-xs font-medium text-[#103B66]/70">Efisiensi Penurunan PM10</span>
+          <p className="text-3xl font-bold text-[#2F6F54] tabular-nums mt-1">
             {effPm10 !== null ? `${effPm10}%` : '--'}
           </p>
           <p className="text-xs text-[#103B66]/65 mt-1">

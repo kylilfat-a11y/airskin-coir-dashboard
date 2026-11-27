@@ -64,7 +64,7 @@ export const SimulasiSistemPage: React.FC<SimulasiSistemPageProps> = ({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-xl font-semibold text-[#103B66]">
+          <h2 className="font-display text-xl font-bold text-[#103B66]">
             Simulasi Sistem
           </h2>
           <p className="text-xs sm:text-sm text-[#176FAF]/90 mt-0.5">
@@ -92,7 +92,7 @@ export const SimulasiSistemPage: React.FC<SimulasiSistemPageProps> = ({
         <form onSubmit={handleStart} className="lg:col-span-5 airskin-card p-5 space-y-4">
           <div className="flex items-center gap-2">
             <Sliders className="w-4 h-4 text-[#176FAF]" />
-            <h3 className="font-display text-base font-semibold text-[#103B66]">
+            <h3 className="text-base font-semibold text-[#103B66]">
               Parameter Simulasi
             </h3>
           </div>
@@ -175,13 +175,13 @@ export const SimulasiSistemPage: React.FC<SimulasiSistemPageProps> = ({
           <div className="rounded-xl bg-[#F5FAFF] border border-[#DCEEFB] p-3.5 grid grid-cols-2 gap-3 text-xs">
             <div>
               <span className="text-[#103B66]/65 block">PM2.5 Keluar</span>
-              <span className="font-mono font-semibold text-[#2F6F54] tabular-nums">
+              <span className="font-bold text-[#2F6F54] tabular-nums">
                 {latest?.pm25Outlet ?? '--'} µg/m³ ({latestEff25 ?? '--'}%)
               </span>
             </div>
             <div>
               <span className="text-[#103B66]/65 block">PM10 Keluar</span>
-              <span className="font-mono font-semibold text-[#2F6F54] tabular-nums">
+              <span className="font-bold text-[#2F6F54] tabular-nums">
                 {latest?.pm10Outlet ?? '--'} µg/m³ ({latestEff10 ?? '--'}%)
               </span>
             </div>
