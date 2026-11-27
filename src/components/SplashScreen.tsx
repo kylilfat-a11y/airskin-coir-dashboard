@@ -55,19 +55,9 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
         </div>
 
         {/* Bilah progres halus 2 detik */}
-        <div className="space-y-2 pt-1">
+        <div className="pt-1">
           <div className="h-1.5 w-full rounded-full bg-[#DCEEFB] overflow-hidden">
             <div className="h-full bg-gradient-to-r from-[#429EDB] to-[#72B89A] rounded-full animate-[splashProgress_1.85s_ease-out_forwards]" />
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-[#103B66]/65">
-            <span>Menyiapkan dashboard pemantauan...</span>
-            <button
-              type="button"
-              onClick={onFinish}
-              className="font-semibold text-[#176FAF] hover:text-[#103B66] transition-colors"
-            >
-              Lewati
-            </button>
           </div>
         </div>
       </div>
